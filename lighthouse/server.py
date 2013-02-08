@@ -22,6 +22,8 @@ from __init__ import __version__
 from __init__ import SERVER_NAME
 
 import data
+import sync
+import state
 
 
 RESPONSE_ABOUT = """
@@ -49,6 +51,12 @@ U_ROOT = '/'
 U_DATA = '/data'
 U_UPDATE = '/update'
 U_LOCK = '/lock'
+U_VERSION = '/version'
+U_PULL = '/pull'
+U_INFO = '/info'
+U_PUSH = '/push'
+U_STATUS = '/status'
+
 
 def d( path, beginning):
 	return path.startswith( beginning+'/') or path == beginning
@@ -64,15 +72,26 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 		self.lock = threading.Lock()
 		BaseHTTPServer.BaseHTTPRequestHandler.__init__( self, *args)
 
+	def _parse_params(self):
+		try:
+			parsed_path = urlparse.urlparse(self.path)
+			self.query_params = dict([p.split('=') for p in parsed_path[4].split('&')])
+		except:
+			self.query_params = {}
+
 	def do_GET(self):
 		""" Processes the GET commands. """
 		with self.lock:
 			path, blocks = self.get_path()
-
+			self._parse_params()
+			print >>sys.stderr, "path=[%s]" % self.query_params
 			if path == U_ROOT: self.response_plain( RESPONSE_ABOUT)
 			elif d( path, U_DATA): self.get_data( blocks[1:])
 			elif d( path, U_UPDATE): self.get_update( blocks[1:])
 			elif e( path, U_LOCK): self.get_lock()
+			elif d( path, U_PULL): self.get_pull()
+			elif e( path, U_INFO): self.get_info()
+			elif e( path, U_STATUS): self.get_status()
 			else: self.response_not_found()
 
 	def do_PUT(self):
@@ -83,6 +102,7 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 			if path == U_ROOT: self.response_forbidden()
 			elif d( path, U_DATA): self.put_data( blocks[1:])
 			elif d( path, U_UPDATE): self.put_update( blocks[1:])
+			elif e( path, U_PUSH): self.put_push()
 			elif e( path, U_LOCK): self.put_lock()
 			else: self.response_not_found()
 
@@ -141,8 +161,22 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 	# Data /data/
 	#
 
+	def _check_version(self):
+		query_version, query_checksum = self.query_params.get('version'), self.query_params.get('checksum')
+		if query_version or query_checksum:
+			version, checksum = data.get_version()
+			try:
+				query_version = int(query_version)
+			except ValueError:
+				query_version = None
+			if (version, checksum) != (query_version, query_checksum):
+				return False
+		return True
+
 	def get_data(self, blocks):
 		""" Data - return data """
+		if not self._check_version():
+			return self.response_not_found()
 		subdata = data.get_data( blocks)
 		if subdata:
 			self.response_json( subdata)
@@ -150,7 +184,6 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 			self.response_not_found()
 
 	def put_data(self, blocks):
-		# FIXME - no lock?
 		subdata = data.get_data( blocks)
 		if subdata:
 			self.response_forbidden()
@@ -158,7 +191,6 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 			self.response_not_found()
 
 	def delete_data(self, blocks):
-		# FIXME - no lock?
 		# Check that the resource exists
 		subdata = data.get_data( blocks)
 		if not subdata:
@@ -215,6 +247,21 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 		else:
 			self.response_not_found()
 
+	def put_push(self):
+		""" Pushes new data """
+
+		# Get content
+		content = self.read_input_json()
+		try:
+			far_data = content['data']
+			far_server_state = state.ServerState(version=content['version'], checksum=content['checksum'])
+		except (TypeError, KeyError):
+			return self.response_bad_request()
+
+		# Update with the content given
+		data.push_data(other_data=far_data, other_server_state=far_server_state)
+		self.response_created()
+
 	def delete_update(self, blocks):
 		""" Deletes the given data. Lock must be acquired. """
 
@@ -250,7 +297,8 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 		return self.response( 200, 'text/plain', response)
 
 	def response_json( self, response):
-		return self.response( 200, 'application/json', json.dumps( response))
+#		return self.response( 200, 'application/json', json.dumps( response))
+		return self.response( 200, 'application/json', response)
 
 	def response_created( self, response = RESPONSE_CREATED):
 		return self.response( 201, 'application/json', response)
@@ -309,14 +357,45 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 		self.log_message( 'JSON: %s', content)
 		return content
 
+	#
+	# Pull /pull/
+	#
 
-def run( data_dir):
+	def get_pull(self):
+		""" Pull - return data with server information and data """
+		return self.response_json( data.get_pull())
+
+	#
+	# Info /info/
+	#
+
+	def get_info(self):
+		""" Info - return data with server information without data"""
+		return self.response_json( data.get_pull(get_data=False))
+
+
+
+	#
+	# Status /status/
+	#
+
+	def get_status(self):
+		""" Info - return data with server information without data"""
+		return self.response_json( sync.get_servers_status())
+
+
+
+
+class ThreadedHTTPServer(SocketServer.ThreadingMixIn, BaseHTTPServer.HTTPServer):
+	""" Handles requests in separate threads to avoid blocks. """
+
+
+def run( data_dir, port=8001):
 	data.load_data( data_dir)
 
 	LighthouseRequestHandler.server_version = SERVER_NAME +'/' +__version__
-	bind_address = ( '', 8001)
-	#httpd = ThreadedHTTPServer( bind_address, LighthouseRequestHandler)
-	httpd = BaseHTTPServer.HTTPServer( bind_address, LighthouseRequestHandler)
+	bind_address = ( '', port)
+	httpd = ThreadedHTTPServer( bind_address, LighthouseRequestHandler)
 	try:
 		httpd.serve_forever()
 	except KeyboardInterrupt:

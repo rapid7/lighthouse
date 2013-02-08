@@ -6,6 +6,11 @@ import _json as json
 import copy
 import glob
 import time
+import md5
+import random
+import threading
+
+import state
 
 
 # Lock timeout in milliseconds
@@ -14,8 +19,24 @@ LOCK_TIMEOUT = 30000
 DATA_DIR_GLOB = '????-??-?? ??:??:??.???'
 
 # Lock name, None is the lock is not acquired
-lock_timestamp = 0
-lock_code = None
+_lock_timestamp = 0
+_lock_code = None
+
+# Threading lock object(s)
+# FIXME: Locking can be more optimised, eg. different locks for 
+#        different kinds of data.
+#        Some data mnipulations can be made out of the critical
+#        sections.
+_lock = threading.RLock() # reentrant lock, read/write lock would be more handy,
+                          # but python std lib doesn't support such locks
+
+
+
+def load_json(s):
+	return json.loads( s)
+
+def dump_json(jsn):
+	return json.dumps( jsn, sort_keys=True, indent=2, check_circular=False)
 
 
 class Data:
@@ -27,7 +48,7 @@ class Data:
 
 	def load( self, str_data):
 		try:
-			self.data = json.loads( str_data)
+			self.data = load_json( str_data)
 		except ValueError:
 			return False
 		return True
@@ -35,7 +56,7 @@ class Data:
 	def load_from_file( self, data_dir):
 		if data_dir == None:
 			self.data = {}
-			return
+			return True # FIXME: Really true?
 
 		files = glob.glob( data_dir +'/' +DATA_DIR_GLOB)
 		for name in sorted( files, reverse=True):
@@ -73,19 +94,37 @@ class Data:
 				return None
 		return node
 
+	@staticmethod
+	def dump_json(node):
+		if node != None:
+			return dump_json( node)
+		else:
+			return None
+
+
 	def get( self, path):
 		""" Retrieves data subsection.
 
-		Path is an array of element names from the root donw to the desired
+		Path is an array of element names from the root down to the desired
 		field.
 
 		Returns None if the path is invalid.
 		"""
 		node = self.traverse( self.data, path)
-		if node != None:
-			return json.dumps( node, sort_keys=True, indent=2, check_circular=False)
-		else:
-			return None
+		return self.dump_json(node)
+
+
+	def pull( self):
+		return self.traverse( self.data, [])
+
+
+	def get_checksum( self):
+		"""
+		"""
+		m = md5.new()
+		m.update( self.get( []))
+		return m.hexdigest()
+
 
 	def set( self, path, content):
 		""" Stores the content given and the position specified.
@@ -107,7 +146,7 @@ class Data:
 			# Store at index
 			# FIXME - index points after end?
 			node[ int(last)] = content
-			return False
+			return False #FIXME: here we should return True, shouldn't we?
 		elif isinstance( node, dict):
 			# If it is a dict, retrieve by a name
 			node[ last] = content
@@ -151,102 +190,205 @@ class Data:
 
 
 # Data structure
-data = Data()
+_data = Data()
 # Update structure
-update = Data()
+_update = Data()
+
+_server_state = state.ServerState(version=0, checksum=_data.get_checksum())
+_uploaded_state = None
+
+
+def get_server_state():
+	global _server_state
+	global _lock
+
+	with _lock:
+		server_state = copy.deepcopy(_server_state)
+	return server_state
+
+
+def get_uploaded_state():
+	global _uploaded_state
+	global _lock
+
+	with _lock:
+		uploaded_state = copy.deepcopy(_uploaded_state)
+	return uploaded_state
 
 
 def get_data( path):
-	global data
-	return data.get( path)
+	global _data, _lock
+	with _lock:
+		return _data.get( path)
 
 def get_update( path):
-	global update
-	return update.get( path)
+	global _update, _lock
+	with _lock:
+		return _update.get( path)
 
 def update_entry_root( path, content):
-	global update
-	return update.set( path, content)
+	global _update, _lock
+	with _lock:
+		return _update.set( path, content)
 
 def delete_data( path):
-	global data
-	return data.delete( path)
+	global _data, _lock
+	with _lock:
+		return _data.delete( path)
 
 def delete_update( path):
-	global update
-	return update.delete( path)
+	global _update, _lock
+	with _lock:
+		return _update.delete( path)
 #
 # Lock management
 #
 
-def timestamp():
+def _timestamp():
 	return int( time.time()*1000)
 
 
 def get_lock_code():
-	global lock_timestamp
-	global lock_code
-	global update
-	if lock_timestamp == 0:
-		# Unlocked
-		return None
-	else:
-		# Locked unless the lock expired
-		now = timestamp()
-		if now-lock_timestamp > LOCK_TIMEOUT:
-			lock_timestamp = 0
-			lock_code = ''
-			update = Data()
+	global _lock_timestamp
+	global _lock_code
+	global _update
+	global _lock
+	with _lock:
+		if _lock_timestamp == 0:
+			# Unlocked
 			return None
-		return lock_code
+		else:
+			# Locked unless the lock expired
+			now = _timestamp()
+			if now-_lock_timestamp > LOCK_TIMEOUT:
+				_lock_timestamp = 0
+				_lock_code = ''
+				_update = Data()
+				return None
+			return _lock_code
 
 def try_acquire_lock( code):
-	global data
-	global update
-	global lock_code
-	global lock_timestamp
+	global _data
+	global _update
+	global _lock_code
+	global _lock_timestamp
+	global _lock
 
-	# Get current lock
-	current_lock = get_lock_code()
-	# If the lock is already acquired and it's not the same, fail
-	if current_lock is not None and current_lock != code:
-		return False
+	with _lock:
+		# Get current lock
+		current_lock = get_lock_code()
+		# If the lock is already acquired and it's not the same, fail
+		if current_lock is not None and current_lock != code:
+			return False
 
-	# Set new lock timestamp
-	lock_timestamp = timestamp()
-	# If it is a new lock, copy its name and data to update
-	if current_lock != code:
-		lock_code = code
-		update = Data( data)
-	return True
+		# Set new lock timestamp
+		_lock_timestamp = _timestamp()
+		# If it is a new lock, copy its name and data to update
+		if current_lock != code:
+			_lock_code = code
+			_update = Data( _data)
+		return True
+
+
+def _inc_server_state():
+	global _server_state
+
+	version = _server_state.version + 1
+	checksum = _data.get_checksum()
+	_server_state = state.ServerState(version=version, checksum=checksum)
+
 
 def release_lock():
-	global data
-	global update
-	global lock_timestamp
+	global _data
+	global _update
+	global _server_state, _uploaded_state
+	global _lock_timestamp
+	global _lock
 
-	if get_lock_code() is None:
-		return False
+	with _lock:
+		if get_lock_code() is None:
+			return False
 
-	# TODO
-	# Do the update of internal structure
-	data = update
-	update = Data()
-	lock_timestamp = 0
-	return True
+		# TODO
+		# Do the update of internal structure
+		_data  = _update
+		_inc_server_state()
+		_uploaded_state = _server_state
+		_update = Data()
+		_lock_timestamp = 0
+		return True
+
 
 def abort_update():
-	global data
-	global update
-	global lock_timestamp
-	if get_lock_code() is None:
-		return False
-	update = Data()
-	lock_timestamp = 0
-	return True
+	global _data
+	global _update
+	global _lock_timestamp
+	global _lock
+
+	with _lock:
+		if get_lock_code() is None:
+			return False
+		_update = Data()
+		_lock_timestamp = 0
+		return True
+
+
+#FIXME: data is both content of the request as a dict or instance of Data here
+def push_data( other_data, other_server_state):
+	global _data
+	global _server_state
+	global _lock
+	with _lock:
+		if other_server_state <= _server_state:
+			return False
+		new_data = Data()
+		new_data.data = other_data # Note: other_data must not be used or modified later
+		_data = new_data
+		_server_state = other_server_state
+		return True
 
 
 def load_data( data_dir):
-	global data
-	return data.load_from_file( data_dir)
+	global _data
+	global _lock
+	# FIXME: Must save and load whole pull, not only data and set version/checksum accordingly
+	#        Maybe we can call push_data(...) here.
+	new_data = Data()
+	if new_data.load_from_file( data_dir):
+		with _lock:
+			_data = new_data
+		return True
+	return False
 
+
+def get_pull( get_data = True):
+	global _data, _server_state
+	global _lock
+
+	with _lock:
+		pull = {
+			'version':_server_state.version,
+			'checksum':_server_state.checksum,
+		}
+		if get_data:
+			pull['data'] = _data.pull()
+		return dump_json(pull)
+
+
+def should_push(push_info = {}):
+	global _data, _server_state, _uploaded_state
+	global _lock
+
+	data, state, uploaded = (None,)*3
+	with _lock:
+		data = _data
+		state = _server_state
+		uploaded = _uploaded_state
+	if uploaded is None or state != uploaded:
+		return None
+	if push_info.get('server-state') != server_state:
+		push_info['server-state'] = server_state
+		push_info['data'] = data
+	if push_info.get('data') is not data:
+		push_info['data'] = data
+	return push_info

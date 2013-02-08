@@ -56,6 +56,7 @@ Command line options
 --help		prints usage information and exits
 --version	prints version information and exists
 --data.d=	path to configuration files which will be loaded upon start
+--port=		port we are listening on
 
 
 Configuration storage

@@ -19,6 +19,8 @@ import sys
 
 import data
 import server
+import sync
+import state
 
 from __init__ import __version__
 from __init__ import SERVER_NAME
@@ -42,10 +44,6 @@ def die(cause, exit_code=EXIT_ERR):
 	sys.exit( exit_code)
 
 
-#class ThreadedHTTPServer(SocketServer.ThreadingMixIn, BaseHTTPServer.HTTPServer):
-#	""" Handles requests in separate threads to avoid blocks. """
-
-
 def print_usage( version_only=False):
 	print >>sys.stderr, VERSION_INFO
 	if not version_only:
@@ -56,10 +54,11 @@ def print_usage( version_only=False):
 
 if __name__ == '__main__':
 	try:
-		optlist, args = getopt.gnu_getopt( sys.argv[1:], '', 'help version data.d='.split())
+		optlist, args = getopt.gnu_getopt( sys.argv[1:], '', 'help version data.d= port= servers='.split())
 	except getopt.GetoptError, err:
 		die( "Parameter error: " +str( err))
 	data_dir = None
+	port = 8001
 	for name, value in optlist:
 		if name == "--help":
 			print_usage()
@@ -67,5 +66,11 @@ if __name__ == '__main__':
 			print_usage( True)
 		if name == "--data.d":
 			data_dir = value
-	server.run( data_dir)
-
+		if name == "--port":
+			port = int(value)
+		if name == "--servers":
+			servers = value.split(',')
+			sync.add_servers(servers)
+	sync.start()
+	server.run( data_dir=data_dir, port=port)
+	sync.stop()
