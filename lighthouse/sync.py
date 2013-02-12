@@ -143,8 +143,8 @@ class Sync:
 		candidates = [ x for x in _servers if x.ping_state and x.ping_state == max_state ]
 		server_desc = random.choice(candidates)
 		logger.info("Trying to pull data from [%s]", server_desc.address)
-		pull = Sync._pull(address=server_desc.address)
-		if pull is None:
+		content = Sync._pull(address=server_desc.address)
+		if content is None:
 			return False
 		try:   
                         far_data = content['data']
@@ -152,7 +152,7 @@ class Sync:
                 except (TypeError, KeyError):
                         logger.warning("Cannot parse pulled data from %s", server_desc.address)
 			return False
-		data.pull(other_data=far_data, other_server_state=far_server_state)
+		data.push_data(other_data=far_data, other_server_state=far_server_state)
 		return False
 
 
