@@ -375,7 +375,7 @@ def get_pull( get_data = True):
 		return dump_json(pull)
 
 
-def should_push(push_info = {}):
+def cur_state(push_info = {}):
 	global _data, _server_state, _uploaded_state
 	global _lock
 
@@ -384,11 +384,6 @@ def should_push(push_info = {}):
 		data = _data
 		state = _server_state
 		uploaded = _uploaded_state
-	if uploaded is None or state != uploaded:
-		return None
-	if push_info.get('server-state') != server_state:
-		push_info['server-state'] = server_state
-		push_info['data'] = data
-	if push_info.get('data') is not data:
-		push_info['data'] = data
-	return push_info
+	push_info['data'] = data.data
+	push_info['state'] = state
+	push_info['uploaded'] = uploaded

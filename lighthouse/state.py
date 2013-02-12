@@ -8,6 +8,9 @@ class ServerState(object):
 		self.checksum = checksum
 
 	def __cmp__(self, other):
+		if other is None:
+			return +1
+
 		if self.version > other.version:
 			return +1
 		elif self.version < other.version:

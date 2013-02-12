@@ -16,6 +16,7 @@ All commands are atomic
 
 import getopt
 import sys
+import logging
 
 import data
 import server
@@ -53,6 +54,7 @@ def print_usage( version_only=False):
 
 
 if __name__ == '__main__':
+	logging.basicConfig(level=logging.DEBUG, format="%(asctime)s.%(msecs)d %(name)-10s %(levelname)-8s %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 	try:
 		optlist, args = getopt.gnu_getopt( sys.argv[1:], '', 'help version data.d= port= servers='.split())
 	except getopt.GetoptError, err:

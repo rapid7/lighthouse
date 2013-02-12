@@ -84,7 +84,6 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 		with self.lock:
 			path, blocks = self.get_path()
 			self._parse_params()
-			print >>sys.stderr, "path=[%s]" % self.query_params
 			if path == U_ROOT: self.response_plain( RESPONSE_ABOUT)
 			elif d( path, U_DATA): self.get_data( blocks[1:])
 			elif d( path, U_UPDATE): self.get_update( blocks[1:])
