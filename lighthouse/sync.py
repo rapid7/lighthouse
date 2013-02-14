@@ -21,32 +21,20 @@ class ServerDesc(object):
 		self.last_ping = None
 		self.last_upload = None
 
-	@staticmethod
-	def dump_time(time):
-		if time is None:
-			return None
-		return time.strftime("%Y%m%dT%H%M%S")
-
-	@staticmethod
-	def dump_state(state):
-		if state is None:
-			return None
-		return state.to_dict()
-
 	def to_dict(self):
 		return {
 			'address': self.address,
-			'uploaded-state':ServerDesc.dump_state(self.uploaded_state),
-			'ping-state':ServerDesc.dump_state(self.ping_state),
+			'uploaded-state':self.uploaded_state and self.iploaded_state.to_dict() or None,
+			'ping-state':self.ping_state and self.ping_state.to_dict() or None,
 			'reachable':self.reachable,
-			'last-ping':ServerDesc.dump_time(self.last_ping),
-			'last-upload':ServerDesc.dump_time(self.last_upload),
+			'last-ping':data.dump_time(self.last_ping),
+			'last-upload':data.dump_time(self.last_upload),
 		}
 
 class Sync:
 	def __init__(self):
 		self._stop = False
-		self.push_info = {}
+		self.push_info = data.PushInfo()
 
 	@staticmethod
 	def _url(address, path='/'):
@@ -97,9 +85,9 @@ class Sync:
 
 	def _try_push_one(self):
 		global _servers
-		if not self.push_info['uploaded'] or self.push_info['uploaded'] != self.push_info['state']:
+		if not self.push_info.uploaded or self.push_info.uploaded != self.push_info.state:
 			return False
-		push_info_state = self.push_info['state']
+		push_info_state = self.push_info.state
 		if any([ x.ping_state and push_info_state < x.ping_state for x in _servers ]):
 			return False
 		candidates = [ x for x in _servers if x.reachable and (x.uploaded_state is None or x.uploaded_state < push_info_state) and (x.ping_state is None or x.ping_state < push_info_state) ] # Note: at present x.reachable if and only if x.ping_state is not None
@@ -109,7 +97,7 @@ class Sync:
 		logger.info("Trying to push data to [%s]", server_desc.address)
 		server_desc.uploaded_state = push_info_state
 		server_desc.last_upload = datetime.datetime.now()
-		if not Sync._push(address=server_desc.address, content=data.dump_json({'version':self.push_info['state'].version, 'checksum':self.push_info['state'].checksum, 'data':self.push_info['data']})):
+		if not Sync._push(address=server_desc.address, content=data.dump_json({'version':self.push_info.state.version, 'checksum':self.push_info.state.checksum, 'data':self.push_info.data})):
 			server_desc.reachable = False
 			return True
 		return True
@@ -138,7 +126,7 @@ class Sync:
 			max_state = max([ x.ping_state for x in _servers if x.ping_state is not None ])
 		except ValueError:
 			max_state = None
-		if max_state is None or max_state <= self.push_info['state']:
+		if max_state is None or max_state <= self.push_info.state:
 			return False
 		candidates = [ x for x in _servers if x.ping_state and x.ping_state == max_state ]
 		server_desc = random.choice(candidates)
@@ -184,7 +172,7 @@ def stop():
 
 _servers = []
 
-_lock = threading.Lock()
+_lock = threading.RLock()
 _servers_copy = []
 
 
@@ -205,10 +193,11 @@ def _process_address(address):
 
 
 def add_servers(new_servers):
-	global _servers
-	for server in new_servers:
-		addr = _process_address(server)
-		if any([ addr == x.address for x in _servers ]):
-			continue
-		_servers.append(ServerDesc(address=addr))
-	_update_servers()
+	global _servers, _lock
+	with _lock:
+		for server in new_servers:
+			addr = _process_address(server)
+			if any([ addr == x.address for x in _servers ]):
+				continue
+			_servers.append(ServerDesc(address=addr))
+		_update_servers()

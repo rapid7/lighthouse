@@ -375,7 +375,21 @@ def get_pull( get_data = True):
 		return dump_json(pull)
 
 
-def cur_state(push_info = {}):
+
+class PushInfo(object):
+	def __init__(self, state=None, uploaded=None, data=None):
+		self.state = state
+		self.uploaded = uploaded
+		self.data = data
+
+
+def dump_time(time):
+	if time is None:
+		return None
+	return time.strftime("%Y%m%dT%H%M%S")
+
+
+def cur_state(push_info):
 	global _data, _server_state, _uploaded_state
 	global _lock
 
@@ -384,6 +398,7 @@ def cur_state(push_info = {}):
 		data = _data
 		state = _server_state
 		uploaded = _uploaded_state
-	push_info['data'] = data.data
-	push_info['state'] = state
-	push_info['uploaded'] = uploaded
+	push_info.data = data.data
+	push_info.state = state
+	push_info.uploaded = uploaded
+	return push_info
