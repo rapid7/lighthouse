@@ -9,6 +9,7 @@ import time
 import md5
 import random
 import threading
+import logging
 
 import state
 
@@ -17,6 +18,9 @@ import state
 LOCK_TIMEOUT = 30000
 # Glob format of a data file
 DATA_DIR_GLOB = '????-??-?? ??:??:??.???'
+
+# Logging
+logger = logging.getLogger(__name__)
 
 # Lock name, None is the lock is not acquired
 _lock_timestamp = 0
@@ -52,23 +56,6 @@ class Data:
 		except ValueError:
 			return False
 		return True
-
-	def load_from_file( self, data_dir):
-		if data_dir == None:
-			self.data = {}
-			return True # FIXME: Really true?
-
-		files = glob.glob( data_dir +'/' +DATA_DIR_GLOB)
-		for name in sorted( files, reverse=True):
-			try:
-				with open( name, 'r') as f:
-					if self.load( f.read()):
-						print 'Uploaded configuration ' +name
-						return True
-			except IOError:
-				pass
-		print 'No configuration found'
-		return False
 
 	@staticmethod
 	def traverse( what, path):
@@ -196,24 +183,6 @@ _update = Data()
 
 _server_state = state.ServerState(version=0, checksum=_data.get_checksum())
 _uploaded_state = None
-
-
-def get_server_state():
-	global _server_state
-	global _lock
-
-	with _lock:
-		server_state = copy.deepcopy(_server_state)
-	return server_state
-
-
-def get_uploaded_state():
-	global _uploaded_state
-	global _lock
-
-	with _lock:
-		uploaded_state = copy.deepcopy(_uploaded_state)
-	return uploaded_state
 
 
 def get_data( path):
@@ -348,16 +317,32 @@ def push_data( other_data, other_server_state):
 		return True
 
 
+def _load_from_file(data_dir):
+	if data_dir == None:
+		return None # FIXME: Really true?
+
+	files = glob.glob( data_dir +'/' +DATA_DIR_GLOB)
+	for name in sorted( files, reverse=True):
+		try:
+			with open( name, 'r') as f:
+				content = load_json( f.read())
+				if content['checksum'] and content['version'] and content['data']:
+					logger.info('Uploaded configuration: [%s]', name)
+					return content
+		except (IOError, ValueError, KeyError):
+			pass
+	logger.warn('No configuration found')
+	return False
+
+
 def load_data( data_dir):
 	global _data
 	global _lock
 	# FIXME: Must save and load whole pull, not only data and set version/checksum accordingly
 	#        Maybe we can call push_data(...) here.
-	new_data = Data()
-	if new_data.load_from_file( data_dir):
-		with _lock:
-			_data = new_data
-		return True
+	content = _load_from_file( data_dir)
+	if content:
+		return push_data(other_server_state=state.ServerState(version=content['version'], checksum=content['checksum']), other_data=content['data'])
 	return False
 
 
@@ -376,17 +361,17 @@ def get_pull( get_data = True):
 
 
 
+def dump_time(time):
+	if time is None:
+		return None
+	return time.strftime("%Y%m%dT%H%M%S")
+
+
 class PushInfo(object):
 	def __init__(self, state=None, uploaded=None, data=None):
 		self.state = state
 		self.uploaded = uploaded
 		self.data = data
-
-
-def dump_time(time):
-	if time is None:
-		return None
-	return time.strftime("%Y%m%dT%H%M%S")
 
 
 def cur_state(push_info):
