@@ -17,7 +17,7 @@ import state
 # Lock timeout in milliseconds
 LOCK_TIMEOUT = 30000
 # Glob format of a data file
-DATA_DIR_GLOB = '????-??-?? ??:??:??.???'
+DATA_DIR_GLOB = '????????T??????.???.json'
 
 # Logging
 logger = logging.getLogger(__name__)
@@ -321,7 +321,9 @@ def _load_from_file(data_dir):
 	if data_dir == None:
 		return None # FIXME: Really true?
 
-	files = glob.glob( data_dir +'/' +DATA_DIR_GLOB)
+	dir_glob = data_dir +'/' +DATA_DIR_GLOB
+	logger.debug("data dir glob: %s", dir_glob)
+	files = glob.glob( dir_glob)
 	for name in sorted( files, reverse=True):
 		try:
 			with open( name, 'r') as f:
@@ -329,8 +331,8 @@ def _load_from_file(data_dir):
 				if content['checksum'] and content['version'] and content['data']:
 					logger.info('Uploaded configuration: [%s]', name)
 					return content
-		except (IOError, ValueError, KeyError):
-			pass
+		except (IOError, ValueError, KeyError) as e:
+			logger.warn("Cannot read file %s with json configuration: %s", name, e)
 	logger.warn('No configuration found')
 	return False
 
