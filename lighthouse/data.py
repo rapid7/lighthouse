@@ -18,8 +18,8 @@ import state
 # Lock timeout in milliseconds
 LOCK_TIMEOUT = 30000
 # Glob format of a data file
-DATA_DIR_GLOB = '????-??-??T??:??:??.??????.json'
-DATA_DIR_STRFTIME = '%Y-%m%dT%H:%M:%S.%f.json'
+DATA_DIR_GLOB = '????????T??????.??????.json'
+DATA_DIR_STRFTIME = '%Y%m%dT%H%M%S.%f.json'
 
 # Logging
 logger = logging.getLogger(__name__)
@@ -327,12 +327,13 @@ def push_data( other_data, other_server_state):
 
 def _load_from_file():
 	global _data_dir
-	data_dir = _data_dir
 
-	if data_dir == None:
+	if _data_dir is None:
 		return None
 
-	files = glob.glob( data_dir +'/' +DATA_DIR_GLOB)
+	dir_glob = _data_dir +'/' +DATA_DIR_GLOB
+	logger.debug("data dir glob: %s", dir_glob)
+	files = glob.glob( dir_glob)
 	for name in sorted( files, reverse=True):
 		try:
 			with open( name, 'r') as f:
@@ -340,8 +341,8 @@ def _load_from_file():
 				if content['checksum'] and content['version'] and content['data']:
 					logger.info('Uploaded configuration: [%s]', name)
 					return content
-		except (IOError, ValueError, KeyError):
-			pass
+		except (IOError, ValueError, KeyError) as e:
+			logger.warn("Cannot read file %s with json configuration: %s", name, e)
 	logger.warn('No configuration found')
 	return False
 
@@ -355,24 +356,20 @@ def _save_to_file():
 		data = _data
 		server_state = server_state
 	if data is None:
-		return
+		return None
 	x = {
 		'version':server_state.version,
 		'checksum':server_state.checksum,
 		'data':data,
 	}
-
 	file_name = _data_dir + '/' + DATA_DIR_STRFTIME
 	with open(file_name, 'w') as f:
 		f.write(dump_json(x))
+	return True
 
 
-def load_data( data_dir):
-	global _data
-	global _lock
-	# FIXME: Must save and load whole pull, not only data and set version/checksum accordingly
-	#        Maybe we can call push_data(...) here.
-	content = _load_from_file( data_dir)
+def load_data():
+	content = _load_from_file()
 	if content:
 		return push_data(other_server_state=state.ServerState(version=content['version'], checksum=content['checksum']), other_data=content['data'])
 	return False
