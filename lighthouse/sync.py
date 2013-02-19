@@ -140,7 +140,8 @@ class Sync:
                 except (TypeError, KeyError):
                         logger.warning("Cannot parse pulled data from %s", server_desc.address)
 			return False
-		data.push_data(other_data=far_data, other_server_state=far_server_state)
+		if data.push_data(other_data=far_data, other_server_state=far_server_state):
+			data.save_data()
 		return False
 
 

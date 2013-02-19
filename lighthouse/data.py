@@ -11,6 +11,7 @@ import random
 import threading
 import datetime
 import logging
+import os
 
 import state
 
@@ -37,6 +38,8 @@ _lock = threading.RLock() # reentrant lock, read/write lock would be more handy,
                           # but python std lib doesn't support such locks
 
 
+_data_dir = None
+
 
 def load_json(s):
 	return json.loads( s)
@@ -45,10 +48,34 @@ def dump_json(jsn):
 	return json.dumps( jsn, sort_keys=True, indent=2, check_circular=False)
 
 
-_data_dir = None
+def _create_data_dir(data_dir):
+	try:
+		os.makedirs(data_dir)
+	except OSError as e:
+		if e.errno == 17: # File already exists
+			return True
+		logger.warn("Cannot create directory: [%s] : %s", data_dir, e)
+		return False
+	return True
+
+
 def set_data_dir(data_dir):
 	global _data_dir
+
+	if data_dir is None:
+		with _lock:
+			_data_dir = None
+		return None
+
+	if not _create_data_dir(data_dir):
+		with _lock:
+			_data_dir = None
+		return False
+
 	_data_dir = data_dir
+
+	return True
+	        	
 
 
 class Data:
@@ -351,18 +378,22 @@ def _save_to_file():
 	global _data_dir
 	global _data, _server_state
 	global _lock
+
+	if _data_dir is None:
+		return None
+
 	data, server_state = None, None
 	with _lock:
 		data = _data
-		server_state = server_state
+		server_state = _server_state
 	if data is None:
 		return None
 	x = {
 		'version':server_state.version,
 		'checksum':server_state.checksum,
-		'data':data,
+		'data':data.data,
 	}
-	file_name = _data_dir + '/' + DATA_DIR_STRFTIME
+	file_name = _data_dir + '/' + datetime.datetime.now().strftime(DATA_DIR_STRFTIME)
 	with open(file_name, 'w') as f:
 		f.write(dump_json(x))
 	return True
@@ -373,6 +404,10 @@ def load_data():
 	if content:
 		return push_data(other_server_state=state.ServerState(version=content['version'], checksum=content['checksum']), other_data=content['data'])
 	return False
+
+
+def save_data():
+	return _save_to_file()
 
 
 def get_pull( get_data = True):

@@ -138,6 +138,7 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 		if not code:
 			# Invalid lock code, delete the lock
 			if data.release_lock():
+				data.save_data()
 				self.response_plain( RESPONSE_RELEASED)
 			else:
 				self.response_not_found()
@@ -258,7 +259,8 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 			return self.response_bad_request()
 
 		# Update with the content given
-		data.push_data(other_data=far_data, other_server_state=far_server_state)
+		if data.push_data(other_data=far_data, other_server_state=far_server_state):
+			data.save_data()
 		self.response_created()
 
 	def delete_update(self, blocks):
@@ -390,8 +392,6 @@ class ThreadedHTTPServer(SocketServer.ThreadingMixIn, BaseHTTPServer.HTTPServer)
 
 
 def run( data_dir, port=8001):
-	data.set_data_dir( data_dir)
-
 	LighthouseRequestHandler.server_version = SERVER_NAME +'/' +__version__
 	bind_address = ( '', port)
 	httpd = ThreadedHTTPServer( bind_address, LighthouseRequestHandler)

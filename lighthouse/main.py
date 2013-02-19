@@ -73,6 +73,9 @@ if __name__ == '__main__':
 		if name == "--servers":
 			servers = value.split(',')
 			sync.add_servers(servers)
+	data.set_data_dir( data_dir)
+	data.load_data()
+
 	sync.start()
 	server.run( data_dir=data_dir, port=port)
 	sync.stop()
