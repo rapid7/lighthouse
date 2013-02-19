@@ -24,7 +24,7 @@ class ServerDesc(object):
 	def to_dict(self):
 		return {
 			'address': self.address,
-			'uploaded-state':self.uploaded_state and self.iploaded_state.to_dict() or None,
+			'uploaded-state':self.uploaded_state and self.uploaded_state.to_dict() or None,
 			'ping-state':self.ping_state and self.ping_state.to_dict() or None,
 			'reachable':self.reachable,
 			'last-ping':data.dump_time(self.last_ping),

@@ -390,7 +390,7 @@ class ThreadedHTTPServer(SocketServer.ThreadingMixIn, BaseHTTPServer.HTTPServer)
 
 
 def run( data_dir, port=8001):
-	data.load_data( data_dir)
+	data.set_data_dir( data_dir)
 
 	LighthouseRequestHandler.server_version = SERVER_NAME +'/' +__version__
 	bind_address = ( '', port)

@@ -9,6 +9,7 @@ import time
 import md5
 import random
 import threading
+import datetime
 import logging
 
 import state
@@ -17,7 +18,8 @@ import state
 # Lock timeout in milliseconds
 LOCK_TIMEOUT = 30000
 # Glob format of a data file
-DATA_DIR_GLOB = '????-??-?? ??:??:??.???'
+DATA_DIR_GLOB = '????-??-??T??:??:??.??????.json'
+DATA_DIR_STRFTIME = '%Y-%m%dT%H:%M:%S.%f.json'
 
 # Logging
 logger = logging.getLogger(__name__)
@@ -41,6 +43,12 @@ def load_json(s):
 
 def dump_json(jsn):
 	return json.dumps( jsn, sort_keys=True, indent=2, check_circular=False)
+
+
+_data_dir = None
+def set_data_dir(data_dir):
+	global _data_dir
+	_data_dir = data_dir
 
 
 class Data:
@@ -317,9 +325,12 @@ def push_data( other_data, other_server_state):
 		return True
 
 
-def _load_from_file(data_dir):
+def _load_from_file():
+	global _data_dir
+	data_dir = _data_dir
+
 	if data_dir == None:
-		return None # FIXME: Really true?
+		return None
 
 	files = glob.glob( data_dir +'/' +DATA_DIR_GLOB)
 	for name in sorted( files, reverse=True):
@@ -333,6 +344,27 @@ def _load_from_file(data_dir):
 			pass
 	logger.warn('No configuration found')
 	return False
+
+
+def _save_to_file():
+	global _data_dir
+	global _data, _server_state
+	global _lock
+	data, server_state = None, None
+	with _lock:
+		data = _data
+		server_state = server_state
+	if data is None:
+		return
+	x = {
+		'version':server_state.version,
+		'checksum':server_state.checksum,
+		'data':data,
+	}
+
+	file_name = _data_dir + '/' + DATA_DIR_STRFTIME
+	with open(file_name, 'w') as f:
+		f.write(dump_json(x))
 
 
 def load_data( data_dir):
