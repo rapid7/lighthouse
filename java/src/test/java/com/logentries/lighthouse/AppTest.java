@@ -33,6 +33,31 @@ public class AppTest
      */
     public void testApp()
     {
+	LighthouseClient lc = new LighthouseClient("127.0.0.1", 8001);
+	/* */
+	try {
+		System.err.println("info>> " + lc.info());
+	} catch (LighthouseException e) {
+		e.printStackTrace();
+	}
+	/* */
+	try {
+		System.err.println("data>> " + lc.data("/"));
+	} catch (LighthouseException e) {
+		e.printStackTrace();
+	}
+	/* */
+	try {
+		System.err.println("data/xxx>> " + lc.data("/xxx"));
+	} catch (LighthouseException e) {
+		e.printStackTrace();
+	}
+	/* */
+	try {
+		System.err.println("pull>> " + lc.pull());
+	} catch (LighthouseException e) {
+		e.printStackTrace();
+	}
         assertTrue( true );
     }
 }
