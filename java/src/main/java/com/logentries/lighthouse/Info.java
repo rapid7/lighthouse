@@ -12,6 +12,14 @@ public class Info {
 		mChecksum = checksum;
 	}
 
+	public int getVersion() {
+		return mVersion;
+	}
+
+	public String getChecksum() {
+		return mChecksum;
+	}
+
 	public String toString() {
 		return String.format("{version:%d; checksum:%s}", mVersion, mChecksum);
 	}

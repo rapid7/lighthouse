@@ -11,6 +11,14 @@ public class Pull {
 		mData = data;
 	}
 
+        public Info getInfo() {
+		return mInfo;
+	}
+
+	public Map getData() {
+		return mData;
+	}
+
 	public String toString() {
 		return String.format("{info:%s, data:%s}", mInfo, mData);
 	}
