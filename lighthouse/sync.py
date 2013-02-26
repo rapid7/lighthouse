@@ -1,6 +1,7 @@
 import threading
 import time
 import sys
+import traceback
 import urllib2
 import datetime
 import copy
@@ -13,17 +14,27 @@ import data
 logger = logging.getLogger(__name__)
 
 class ServerDesc(object):
+"""
+Represents every server from the cluster.
+"""
+
 	def __init__(self, address):
+		# Its addres as a string of the form ip:port, host:port
 		self.address = address
+		# Last state that was pushed to the server (instance of State or None)
 		self.uploaded_state = None
+		# Last state of the server received by ping (instance of State or None)
 		self.ping_state = None
+		# If last ping successed
 		self.reachable = False
+		# Time of the last ping (DateTime)
 		self.last_ping = None
+		# Time of the last push (DateTime)
 		self.last_upload = None
 
 	def to_dict(self):
 		return {
-			'address': self.address,
+			'address':self.address,
 			'uploaded-state':self.uploaded_state and self.uploaded_state.to_dict() or None,
 			'ping-state':self.ping_state and self.ping_state.to_dict() or None,
 			'reachable':self.reachable,
@@ -148,10 +159,13 @@ class Sync:
 	def __call__(self):
 		while not self._stop:
 			time.sleep(0.05)
-			data.cur_state(self.push_info)
-			if self._try_push_one() or self._try_ping_one():
-				_update_servers()
-			self._try_pull_one()
+			try:
+				data.cur_state(self.push_info)
+				if self._try_push_one() or self._try_ping_one():
+					_update_servers()
+				self._try_pull_one()
+			except Exception:
+				traceback.print_exc(file=sys.stderr)
 
 	def stop(self):
 		# FIXME: lock
