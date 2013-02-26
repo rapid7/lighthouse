@@ -1,5 +1,9 @@
 package com.logentries.lighthouse;
 
+import java.util.Map;
+import org.json.simple.JSONValue;
+import org.json.simple.JSONObject;
+
 import junit.framework.Test;
 import junit.framework.TestCase;
 import junit.framework.TestSuite;
@@ -33,6 +37,47 @@ public class AppTest
      */
     public void testApp()
     {
+	int version =123;
+
+	LighthouseClient lc = new LighthouseClient("127.0.0.1", 8001);
+	/* */
+	try {
+		System.err.println("info>> " + lc.info());
+		version = lc.info().getVersion();
+	} catch (LighthouseException e) {
+		e.printStackTrace();
+	}
+	/* */
+	try {
+		System.err.println("data>> " + lc.data("/"));
+	} catch (LighthouseException e) {
+		e.printStackTrace();
+	}
+	/* */
+	try {
+		System.err.println("data/xxx>> " + lc.data("/xxx"));
+	} catch (LighthouseException e) {
+		e.printStackTrace();
+	}
+	/* */
+	try {
+		System.err.println("pull>> " + lc.pull());
+	} catch (LighthouseException e) {
+		e.printStackTrace();
+	}
+	/* */
+	try {
+		Map data = new JSONObject();
+		data.put("Everything", "Works");
+		data.put("XXX", new Integer(1256));
+		Map data2 = new JSONObject();
+		data2.put("12", new Integer(12));
+		data2.put("3.14", new Float(3.14));
+		data.put("x", data2);
+		lc.push(new Pull(new Info(version + 1, "ADFCDADF"), data));
+	} catch (LighthouseException e) {
+		e.printStackTrace();
+	}
         assertTrue( true );
     }
 }
