@@ -1,23 +1,18 @@
 #! /usr/bin/python
-# Copyright (c) 2012 Viliam Holub, Logentries
+# Copyright (c) 2012, 2013 Viliam Holub, Logentries
 
 """
 
 Logentries Lighthouse
 
-
-
-GET commands are safe
-PUT, DELETE commands on update are idempotent
-All commands are atomic
-
-
 """
 
+# System imports
 import getopt
 import sys
 import logging
 
+# Local imports
 import data
 import server
 import sync
@@ -26,26 +21,35 @@ import state
 from __init__ import __version__
 from __init__ import SERVER_NAME
 
+# Server version string
 VERSION_INFO = SERVER_NAME +" Version " +__version__
 
+# Usage help
 USAGE = """
---help     prints help and exits
---version  prints version information and exits
+--help      prints help and exits
+--version   prints version information and exits
+--data.d    path to configuration files
+--port=     port we listen on
+--seeds=    other instances in the cluster, comma-separated
 """
 
 # Exit codes
-EXIT_OK = 0
-EXIT_HELP = 1
-EXIT_ERR = 2
+EXIT_OK = 0   # OK
+EXIT_HELP = 1 # Help text printed
+EXIT_ERR = 2  # Error
 
+# Log entry format
+LOG_FORMAT = "%(asctime)s.%(msecs)d %(name)-10s %(levelname)-8s %(message)s"
 
 
 def die(cause, exit_code=EXIT_ERR):
+	""" Print the text given and exits. """
 	print >>sys.stderr, cause
 	sys.exit( exit_code)
 
 
 def print_usage( version_only=False):
+	""" Prints usage info with version. """
 	print >>sys.stderr, VERSION_INFO
 	if not version_only:
 		print >>sys.stderr, USAGE
@@ -54,12 +58,11 @@ def print_usage( version_only=False):
 
 
 if __name__ == '__main__':
-	logging.basicConfig(level=logging.DEBUG, format="%(asctime)s.%(msecs)d %(name)-10s %(levelname)-8s %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+	logging.basicConfig(level=logging.DEBUG, format=LOG_FORMAT, datefmt="%Y-%m-%d %H:%M:%S")
 	try:
-		optlist, args = getopt.gnu_getopt( sys.argv[1:], '', 'help version data.d= port= servers='.split())
+		optlist, args = getopt.gnu_getopt( sys.argv[1:], '', 'help version data.d= port= seeds='.split())
 	except getopt.GetoptError, err:
 		die( "Parameter error: " +str( err))
-	data_dir = None
 	port = 8001
 	for name, value in optlist:
 		if name == "--help":
@@ -67,15 +70,15 @@ if __name__ == '__main__':
 		if name == "--version":
 			print_usage( True)
 		if name == "--data.d":
-			data_dir = value
+			data.set_data_dir( value)
 		if name == "--port":
-			port = int(value)
-		if name == "--servers":
-			servers = value.split(',')
-			sync.add_servers(servers)
-	data.set_data_dir( data_dir)
+			port = int( value)
+		if name == "--seeds":
+			seeds = value.split( ',')
+			sync.add_servers( seeds)
 	data.load_data()
 
 	sync.start()
 	server.run( data_dir=data_dir, port=port)
 	sync.stop()
+

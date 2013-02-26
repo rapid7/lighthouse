@@ -75,7 +75,6 @@ def set_data_dir(data_dir):
 	_data_dir = data_dir
 
 	return True
-	        	
 
 
 class Data:
@@ -451,3 +450,4 @@ def cur_state(push_info):
 	push_info.state = state
 	push_info.uploaded = uploaded
 	return push_info
+

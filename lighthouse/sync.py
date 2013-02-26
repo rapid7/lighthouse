@@ -202,3 +202,4 @@ def add_servers(new_servers):
 				continue
 			_servers.append(ServerDesc(address=addr))
 		_update_servers()
+
