@@ -1,9 +1,9 @@
 #! /usr/bin/python
 # Copyright (c) Viliam Holub, Logentries
 
-"""
+"""HTTP server implementation.
 
-HTTP server implementation
+We communicate with the world via HTTP. This is a lightweight HTTP server.
 
 """
 
@@ -21,9 +21,9 @@ import urlparse
 from __init__ import __version__
 from __init__ import SERVER_NAME
 
+# Local imports
 import data
 import sync
-import state
 
 
 RESPONSE_ABOUT = """
@@ -160,7 +160,7 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 	def _check_version(self):
 		query_sequence, query_checksum = self.query_params.get('sequence'), self.query_params.get('checksum')
 		if query_sequence or query_checksum:
-			sequence, checksum = data.get_sequence() # FIXME
+			sequence, checksum = data.get_version() # FIXME
 			try:
 				query_sequence = int(query_sequence)
 			except ValueError:
@@ -250,7 +250,7 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 		content = self.read_input_json()
 		try:
 			far_data = content['data']
-			far_server_state = state.DataVersion(sequence=content['sequence'], checksum=content['checksum'])
+			far_server_state = data.DataVersion(sequence=content['sequence'], checksum=content['checksum'])
 		except (TypeError, KeyError):
 			return self.response_bad_request()
 
@@ -294,7 +294,6 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 		return self.response( 200, 'text/plain', response)
 
 	def response_json( self, response):
-#		return self.response( 200, 'application/json', json.dumps( response))
 		return self.response( 200, 'application/json', response)
 
 	def response_created( self, response = RESPONSE_CREATED):

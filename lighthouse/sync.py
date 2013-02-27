@@ -11,7 +11,6 @@ import traceback
 import urllib2
 
 # Local imports
-import state
 import data
 
 logger = logging.getLogger(__name__)
@@ -137,7 +136,7 @@ class Sync:
 		if not info:
 			server_desc.reachable = False
 			return True
-		server_desc.ping_state = state.DataVersion(sequence=info['sequence'], checksum=info['checksum'])
+		server_desc.ping_state = data.DataVersion(sequence=info['sequence'], checksum=info['checksum'])
 		server_desc.reachable = True
 		return True
 
@@ -157,7 +156,7 @@ class Sync:
 			return False
 		try:
                         far_data = content['data']
-                        far_server_state = state.DataVersion(sequence=content['sequence'], checksum=content['checksum'])
+                        far_server_state = data.DataVersion(sequence=content['sequence'], checksum=content['checksum'])
                 except (TypeError, KeyError):
                         logger.warning("Cannot parse pulled data from %s", server_desc.address)
 			return False

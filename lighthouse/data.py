@@ -1,5 +1,16 @@
 #!/usr/bin/python
 
+"""Data store representation.
+
+We keep two instances of data. One represents currect state and is immutable.
+The other one represents the next state of the data store, being modified by a
+clicked holding a lock.
+
+This data store is protected by a lock to avoid race conditions.
+
+
+"""
+
 # System imports
 from __future__ import with_statement
 import _json as json
@@ -11,9 +22,6 @@ import md5
 import os
 import threading
 import time
-
-# Local imports
-import state
 
 
 # Lock timeout in milliseconds
@@ -80,6 +88,45 @@ def set_data_dir(data_dir):
 	_data_dir = data_dir
 
 	return True
+
+
+class DataVersion(object):
+	"""
+	The state we keep for each server. It consists of a number and a
+	checksum of the data store.
+	"""
+	def __init__(self, sequence = None, checksum=None):
+		if sequence is None or checksum is None:
+			raise TypeError() # FIXME: Really TypeError ?
+		self.sequence = int(sequence)
+		self.checksum = checksum
+
+	def __cmp__(self, other):
+		"""
+		We compare states on sequence first, then checksum.
+		"""
+		if other is None:
+			return +1
+
+		if self.sequence > other.sequence:
+			return +1
+		elif self.sequence < other.sequence:
+			return -1
+
+		if self.checksum > other.checksum:
+			return +1
+		elif self.checksum < other.checksum:
+			return -1
+		return 0
+
+	def to_dict(self):
+		return {
+			'sequence': self.sequence,
+			'checksum': self.checksum,
+		}
+
+	def clone(self):
+		return DataVersion(sequence=self.sequence, checksum=self.checksum)
 
 
 class Data:
@@ -221,7 +268,7 @@ _data = Data()
 # Update structure
 _update = Data()
 
-_server_state = state.DataVersion(sequence=0, checksum=_data.get_checksum())
+_server_state = DataVersion(sequence=0, checksum=_data.get_checksum())
 _uploaded_state = None
 
 
@@ -304,7 +351,7 @@ def _inc_server_state():
 
 	sequence = _server_state.sequence + 1
 	checksum = _data.get_checksum()
-	_server_state = state.DataVersion(sequence=sequence, checksum=checksum)
+	_server_state = DataVersion(sequence=sequence, checksum=checksum)
 
 
 def release_lock():
@@ -407,7 +454,7 @@ def _save_to_file():
 def load_data():
 	content = _load_from_file()
 	if content:
-		return push_data(other_server_state=state.DataVersion(sequence=content['sequence'], checksum=content['checksum']), other_data=content['data'])
+		return push_data(other_server_state=DataVersion(sequence=content['sequence'], checksum=content['checksum']), other_data=content['data'])
 	return False
 
 
