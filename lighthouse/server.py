@@ -162,14 +162,14 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 	#
 
 	def _check_version(self):
-		query_version, query_checksum = self.query_params.get('version'), self.query_params.get('checksum')
-		if query_version or query_checksum:
-			version, checksum = data.get_version() # FIXME
+		query_sequence, query_checksum = self.query_params.get('sequence'), self.query_params.get('checksum')
+		if query_sequence or query_checksum:
+			sequence, checksum = data.get_sequence() # FIXME
 			try:
-				query_version = int(query_version)
+				query_sequence = int(query_sequence)
 			except ValueError:
-				query_version = None
-			if (version, checksum) != (query_version, query_checksum):
+				query_sequence = None
+			if (sequence, checksum) != (query_sequence, query_checksum):
 				return False
 		return True
 
@@ -254,7 +254,7 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 		content = self.read_input_json()
 		try:
 			far_data = content['data']
-			far_server_state = state.ServerState(version=content['version'], checksum=content['checksum'])
+			far_server_state = state.DataVersion(sequence=content['sequence'], checksum=content['checksum'])
 		except (TypeError, KeyError):
 			return self.response_bad_request()
 

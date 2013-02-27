@@ -118,7 +118,7 @@ class Sync:
 		logger.info("Trying to push data to [%s]", server_desc.address)
 		server_desc.uploaded_state = push_info_state
 		server_desc.last_upload = datetime.datetime.now()
-		if not Sync._push(address=server_desc.address, content=data.dump_json({'version':self.push_info.state.version, 'checksum':self.push_info.state.checksum, 'data':self.push_info.data})):
+		if not Sync._push(address=server_desc.address, content=data.dump_json({'sequence':self.push_info.state.sequence, 'checksum':self.push_info.state.checksum, 'data':self.push_info.data})):
 			server_desc.reachable = False
 			return True
 		return True
@@ -137,7 +137,7 @@ class Sync:
 		if not info:
 			server_desc.reachable = False
 			return True
-		server_desc.ping_state = state.ServerState(version=info['version'], checksum=info['checksum'])
+		server_desc.ping_state = state.DataVersion(sequence=info['sequence'], checksum=info['checksum'])
 		server_desc.reachable = True
 		return True
 
@@ -155,9 +155,9 @@ class Sync:
 		content = Sync._pull(address=server_desc.address)
 		if content is None:
 			return False
-		try:   
+		try:
                         far_data = content['data']
-                        far_server_state = state.ServerState(version=content['version'], checksum=content['checksum'])
+                        far_server_state = state.DataVersion(sequence=content['sequence'], checksum=content['checksum'])
                 except (TypeError, KeyError):
                         logger.warning("Cannot parse pulled data from %s", server_desc.address)
 			return False

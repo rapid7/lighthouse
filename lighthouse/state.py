@@ -1,25 +1,25 @@
 
-class ServerState(object):
+class DataVersion(object):
 	"""
-	The state we keep for each server. It consists of serial version number
+	The state we keep for each server. It consists of serial sequence number
 	and a checksum of the configuration hold.
 	"""
-	def __init__(self, version = None, checksum=None):
-		if version is None or checksum is None:
+	def __init__(self, sequence = None, checksum=None):
+		if sequence is None or checksum is None:
 			raise TypeError() # FIXME: Really TypeError ?
-		self.version = int(version)
+		self.sequence = int(sequence)
 		self.checksum = checksum
 
 	def __cmp__(self, other):
 		"""
-		We compare states on version first, then checksum.
+		We compare states on sequence first, then checksum.
 		"""
 		if other is None:
 			return +1
 
-		if self.version > other.version:
+		if self.sequence > other.sequence:
 			return +1
-		elif self.version < other.version:
+		elif self.sequence < other.sequence:
 			return -1
 
 		if self.checksum > other.checksum:
@@ -30,10 +30,10 @@ class ServerState(object):
 
 	def to_dict(self):
 		return {
-			'version': self.version,
+			'sequence': self.sequence,
 			'checksum': self.checksum,
 		}
 
 	def clone(self):
-		return ServerState(version=self.version, checksum=self.checksum)
+		return DataVersion(sequence=self.sequence, checksum=self.checksum)
 

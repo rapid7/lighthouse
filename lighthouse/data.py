@@ -221,7 +221,7 @@ _data = Data()
 # Update structure
 _update = Data()
 
-_server_state = state.ServerState(version=0, checksum=_data.get_checksum())
+_server_state = state.DataVersion(sequence=0, checksum=_data.get_checksum())
 _uploaded_state = None
 
 
@@ -302,9 +302,9 @@ def try_acquire_lock( code):
 def _inc_server_state():
 	global _server_state
 
-	version = _server_state.version + 1
+	sequence = _server_state.sequence + 1
 	checksum = _data.get_checksum()
-	_server_state = state.ServerState(version=version, checksum=checksum)
+	_server_state = state.DataVersion(sequence=sequence, checksum=checksum)
 
 
 def release_lock():
@@ -370,7 +370,7 @@ def _load_from_file():
 		try:
 			with open( name, 'r') as f:
 				content = load_json( f.read())
-				if content['checksum'] and content['version'] and content['data']:
+				if content['checksum'] and content['sequence'] and content['data']:
 					logger.info('Uploaded configuration: [%s]', name)
 					return content
 		except (IOError, ValueError, KeyError) as e:
@@ -394,7 +394,7 @@ def _save_to_file():
 	if data is None:
 		return None
 	x = {
-		'version':server_state.version,
+		'sequence':server_state.sequence,
 		'checksum':server_state.checksum,
 		'data':data.data,
 	}
@@ -407,7 +407,7 @@ def _save_to_file():
 def load_data():
 	content = _load_from_file()
 	if content:
-		return push_data(other_server_state=state.ServerState(version=content['version'], checksum=content['checksum']), other_data=content['data'])
+		return push_data(other_server_state=state.DataVersion(sequence=content['sequence'], checksum=content['checksum']), other_data=content['data'])
 	return False
 
 
@@ -421,7 +421,7 @@ def get_pull( get_data = True):
 
 	with _lock:
 		pull = {
-			'version':_server_state.version,
+			'sequence':_server_state.sequence,
 			'checksum':_server_state.checksum,
 		}
 		if get_data:
@@ -446,7 +446,7 @@ class PushInfo(object):
 def cur_state():
 	"""Returns the current state of all data.
 
-	That contains current data, version, checksum, and uploaded state.
+	That contains current data, sequence, checksum, and uploaded state.
 	"""
 	global _data, _server_state, _uploaded_state
 	global _lock
