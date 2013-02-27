@@ -1,25 +1,29 @@
+
+# System imports
+import copy
+import datetime
+import logging
+import random
+import sys
 import threading
 import time
-import sys
 import traceback
 import urllib2
-import datetime
-import copy
-import logging
 
-import random
+# Local imports
 import state
 import data
 
 logger = logging.getLogger(__name__)
 
 class ServerDesc(object):
-"""
-Represents every server from the cluster.
-"""
+	"""
+	Describes current state of the Lighthouse instance as seen from the
+	current instance.
+	"""
 
 	def __init__(self, address):
-		# Its addres as a string of the form ip:port, host:port
+		# Address as a string of the form ip:port or host:port
 		self.address = address
 		# Last state that was pushed to the server (instance of State or None)
 		self.uploaded_state = None
@@ -34,15 +38,19 @@ Represents every server from the cluster.
 
 	def to_dict(self):
 		return {
-			'address':self.address,
-			'uploaded-state':self.uploaded_state and self.uploaded_state.to_dict() or None,
-			'ping-state':self.ping_state and self.ping_state.to_dict() or None,
-			'reachable':self.reachable,
-			'last-ping':data.dump_time(self.last_ping),
-			'last-upload':data.dump_time(self.last_upload),
+			'address': self.address,
+			'uploaded-state': self.uploaded_state and self.uploaded_state.to_dict() or None,
+			'ping-state': self.ping_state and self.ping_state.to_dict() or None,
+			'reachable': self.reachable,
+			'last-ping': data.dump_time(self.last_ping),
+			'last-upload': data.dump_time(self.last_upload),
 		}
 
 class Sync:
+	"""
+	Synchronizes instances in the cluster.
+	"""
+
 	def __init__(self):
 		self._stop = False
 		self.push_info = data.PushInfo()
@@ -95,6 +103,8 @@ class Sync:
 
 
 	def _try_push_one(self):
+		"""Tries to push the current data to other instance.
+		"""
 		global _servers
 		if not self.push_info.uploaded or self.push_info.uploaded != self.push_info.state:
 			return False
@@ -160,7 +170,9 @@ class Sync:
 		while not self._stop:
 			time.sleep(0.05)
 			try:
-				data.cur_state(self.push_info)
+				# Get current state
+				self.push_info = data.cur_state()
+
 				if self._try_push_one() or self._try_ping_one():
 					_update_servers()
 				self._try_pull_one()

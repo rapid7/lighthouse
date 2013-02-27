@@ -79,6 +79,6 @@ if __name__ == '__main__':
 	data.load_data()
 
 	sync.start()
-	server.run( data_dir=data_dir, port=port)
+	server.run( port=port)
 	sync.stop()
 

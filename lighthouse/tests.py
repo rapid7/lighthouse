@@ -1,7 +1,9 @@
 #!/usr/bin/python
 
+# System imports
 import unittest
 
+# Local imports
 import data
 
 class TestData(unittest.TestCase):

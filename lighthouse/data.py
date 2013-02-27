@@ -1,18 +1,18 @@
 #!/usr/bin/python
 
+# System imports
 from __future__ import with_statement
-
 import _json as json
 import copy
-import glob
-import time
-import md5
-import random
-import threading
 import datetime
+import glob
 import logging
+import md5
 import os
+import threading
+import time
 
+# Local imports
 import state
 
 
@@ -45,6 +45,11 @@ def load_json(s):
 	return json.loads( s)
 
 def dump_json(jsn):
+	"""
+	Converts the configuration into human-readable string. This conversion
+	must be predictable. This means that the same configuration will always
+	be converted into the same string.
+	"""
 	return json.dumps( jsn, sort_keys=True, indent=2, check_circular=False)
 
 
@@ -141,9 +146,10 @@ class Data:
 
 	def get_checksum( self):
 		"""
+		Calculates a checksum of the data in a predictable way.
 		"""
 		m = md5.new()
-		m.update( self.get( []))
+		m.update( self.dump_json( self.data))
 		return m.hexdigest()
 
 
@@ -437,17 +443,18 @@ class PushInfo(object):
 		self.data = data
 
 
-def cur_state(push_info):
+def cur_state():
+	"""Returns the current state of all data.
+
+	That contains current data, version, checksum, and uploaded state.
+	"""
 	global _data, _server_state, _uploaded_state
 	global _lock
 
-	data, state, uploaded = (None,)*3
+	s = PushInfo()
 	with _lock:
-		data = _data
-		state = _server_state
-		uploaded = _uploaded_state
-	push_info.data = data.data
-	push_info.state = state
-	push_info.uploaded = uploaded
-	return push_info
+		s.data = _data.data
+		s.state = _server_state
+		s.uploaded = _uploaded_state
+	return s
 

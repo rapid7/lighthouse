@@ -7,17 +7,17 @@ HTTP server implementation
 
 """
 
+# System imports
 from __future__ import with_statement
-
+import BaseHTTPServer
+import SocketServer
 import _json as json
 import sys
 import threading
 import time
 import urlparse
 
-import BaseHTTPServer
-import SocketServer
-
+# Local imports
 from __init__ import __version__
 from __init__ import SERVER_NAME
 
@@ -164,7 +164,7 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 	def _check_version(self):
 		query_version, query_checksum = self.query_params.get('version'), self.query_params.get('checksum')
 		if query_version or query_checksum:
-			version, checksum = data.get_version()
+			version, checksum = data.get_version() # FIXME
 			try:
 				query_version = int(query_version)
 			except ValueError:
@@ -391,7 +391,7 @@ class ThreadedHTTPServer(SocketServer.ThreadingMixIn, BaseHTTPServer.HTTPServer)
 	""" Handles requests in separate threads to avoid blocks. """
 
 
-def run( data_dir, port=8001):
+def run( port=8001):
 	LighthouseRequestHandler.server_version = SERVER_NAME +'/' +__version__
 	bind_address = ( '', port)
 	httpd = ThreadedHTTPServer( bind_address, LighthouseRequestHandler)
