@@ -55,7 +55,7 @@ U_VERSION = '/version'
 U_PULL = '/pull'
 U_INFO = '/info'
 U_PUSH = '/push'
-U_STATUS = '/status'
+U_STATE = '/state'
 
 
 def d( path, beginning):
@@ -88,7 +88,7 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 		elif e( path, U_LOCK): self.get_lock()
 		elif d( path, U_PULL): self.get_pull()
 		elif e( path, U_INFO): self.get_info()
-		elif e( path, U_STATUS): self.get_status()
+		elif e( path, U_STATE): self.get_state()
 		else: self.response_not_found()
 
 	def do_PUT(self):
@@ -372,12 +372,12 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 
 
 	#
-	# Status /status/
+	# State /state/
 	#
 
-	def get_status(self):
-		""" Info - return data with server information without data"""
-		return self.response_json( sync.get_servers_status())
+	def get_state(self):
+		""" Info - return data with server information without data."""
+		return self.response_json( sync.cluster_state.get_state())
 
 
 

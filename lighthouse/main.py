@@ -62,7 +62,7 @@ if __name__ == '__main__':
 	try:
 		optlist, args = getopt.gnu_getopt( sys.argv[1:], '', 'help version data.d= port= seeds='.split())
 	except getopt.GetoptError, err:
-		die( "Parameter error: " +str( err))
+		die( 'Parameter error: ' +str( err))
 	port = 8001
 	for name, value in optlist:
 		if name == "--help":
@@ -75,7 +75,10 @@ if __name__ == '__main__':
 			port = int( value)
 		if name == "--seeds":
 			seeds = value.split( ',')
-			sync.add_servers( seeds)
+			for seed in seeds:
+				r = sync.cluster.add_instance( seed)
+				if !r:
+					die( 'Invalid seed %s'%seed)
 	data.load_data()
 
 	sync.start()

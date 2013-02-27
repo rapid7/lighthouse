@@ -13,20 +13,47 @@ import urllib2
 # Local imports
 import data
 
+# Period between pings in seconds
+PING_PERIOD = 0.2
+# Maximal delay for push/pull operation
+REACTION_VAR = 0.01
+
 logger = logging.getLogger(__name__)
 
-class ServerDesc(object):
-	"""
-	Describes current state of the Lighthouse instance as seen from the
-	current instance.
+
+from functools import wraps
+
+def synchronous( tlockname ):
+	"""A decorator to place an instance based lock around a method """
+
+	def _synched(func):
+		@wraps(func)
+		def _synchronizer(self,*args, **kwargs):
+			tlock = self.__getattribute__( tlockname)
+			tlock.acquire()
+			try:
+				return func(self, *args, **kwargs)
+			finally:
+				tlock.release()
+		return _synchronizer
+	return _synched
+
+
+class InstanceState:
+	"""Describes state of an instance.
 	"""
 
 	def __init__(self, address):
-		# Address as a string of the form ip:port or host:port
+		"""Initializes the state with address given. All other
+		attributes are set to default valuse.
+		"""
+		# Address of the instance as a string of the form ip:port or
+		# host:port. It is immutable.
 		self.address = address
-		# Last state that was pushed to the server (instance of State or None)
+
+		# Last state that was pushed to the server (instance of DataVersion or None)
 		self.uploaded_state = None
-		# Last state of the server received by ping (instance of State or None)
+		# Last state of the server received by ping (instance of DataVErsion or None)
 		self.ping_state = None
 		# If last ping successed
 		self.reachable = False
@@ -44,6 +71,96 @@ class ServerDesc(object):
 			'last-ping': data.dump_time(self.last_ping),
 			'last-upload': data.dump_time(self.last_upload),
 		}
+
+
+class Monitor(threading.Thread):
+	"""Monitors the instance given for updates.
+
+	Runs in its own thread. It follows the ping/pull/push pattern.
+	"""
+
+	def __init__(self, instance_state):
+		"""Initializes the monitor with instance state given.
+		"""
+		# Initialize the thread as daemon
+		super(Monitor, self).__init__(name="Monitor %s"%instance_state.address)
+		self.daemon = True
+
+		# Instance state this monitor is responsible for
+		self.instance_state = instance_state
+		# Asynchronous communicaton - push request
+		self.force_push = threading.Event()
+
+	
+	def run(self):
+		"""Runs the cycle ping/pull/push.
+		"""
+		while True:
+			# Wait for push signal or timeout
+			do_push = self.force_push.wait( PING_PERIOD)
+			# Wait little bit more to avoid update storms
+			time.sleep( random.random( REACTION_VAR))
+			if do_push:
+				# TODO - push
+				pass
+			else:
+				# TODO - ping
+				pass
+
+
+
+
+
+class ClusterState:
+	"""Describes state of the cluster.
+	"""
+
+
+	def __init__(self):
+		"""Initializes the cluster state with all entries empty.
+		"""
+		# Lock to guard this instance
+		self.lock = threading.RLock()
+		# States of all visible instances
+		self.instance_states = []
+		# Instance monitors
+		self.monitors = []
+
+
+	def add_instance(self, xaddr):
+		"""Adds a new instance to the cluster. New Push and Pull
+		monitors are created.
+
+		Args:
+			xaddr: address in the form of ip:port or host:port
+		Returns:
+			True is successful, False otherwise
+		"""
+		# Normalize and check the address
+		addr = _normalize_addr( xaddr)
+		if not addr:
+			return False
+
+		with self.lock:
+			# Check that the address is not in our list already
+			if any( [addr == x.address for x in self.instance_states]):
+				return True
+			# Create a new state for the instance
+			instance_state = InstanceState( addr)
+			self.instance_states.append( instance_state)
+			# Instantiate and start a monitor
+			monitor = Monitor( instance_state)
+			monitor.start()
+			self.monitors.append( monitor)
+
+	def get_state(self):
+		"""Returns JSON-encoded state of the cluster.
+		"""
+		with self.lock:
+			return data.dump_json( [x.to_dict()
+					for x in self.instance_states])
+
+
 
 class Sync:
 	"""
@@ -199,7 +316,6 @@ def stop():
 _servers = []
 
 _lock = threading.RLock()
-_servers_copy = []
 
 
 def _update_servers():
@@ -207,24 +323,18 @@ def _update_servers():
 	with _lock:
 		_servers_copy = copy.deepcopy(_servers)
 
-def get_servers_status():
-	ret = []
-	with _lock:
-		ret = [x.to_dict() for x in _servers_copy]
-	return data.dump_json(ret)
+
+def _normalize_addr( addr):
+	"""Converts the address to the IP:port format.
+
+	Args:
+		addr: address to convert
+	Returns:
+		Converted address or None if invalid.
+	"""
+	return addr # FIXME: Better checking :-)
 
 
-def _process_address(address):
-	return address # FIXME: Better checking :-)
 
-
-def add_servers(new_servers):
-	global _servers, _lock
-	with _lock:
-		for server in new_servers:
-			addr = _process_address(server)
-			if any([ addr == x.address for x in _servers ]):
-				continue
-			_servers.append(ServerDesc(address=addr))
-		_update_servers()
+cluster_state = ClusterState()
 
