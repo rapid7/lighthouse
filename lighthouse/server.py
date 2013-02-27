@@ -69,7 +69,6 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 	""" Interface to the Loghthouse configuration. """
 
 	def __init__(self, *args):
-		self.lock = threading.Lock()
 		BaseHTTPServer.BaseHTTPRequestHandler.__init__( self, *args)
 
 	def _parse_params(self):
@@ -81,40 +80,37 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 
 	def do_GET(self):
 		""" Processes the GET commands. """
-		with self.lock:
-			path, blocks = self.get_path()
-			self._parse_params()
-			if path == U_ROOT: self.response_plain( RESPONSE_ABOUT)
-			elif d( path, U_DATA): self.get_data( blocks[1:])
-			elif d( path, U_UPDATE): self.get_update( blocks[1:])
-			elif e( path, U_LOCK): self.get_lock()
-			elif d( path, U_PULL): self.get_pull()
-			elif e( path, U_INFO): self.get_info()
-			elif e( path, U_STATUS): self.get_status()
-			else: self.response_not_found()
+		path, blocks = self.get_path()
+		self._parse_params()
+		if path == U_ROOT: self.response_plain( RESPONSE_ABOUT)
+		elif d( path, U_DATA): self.get_data( blocks[1:])
+		elif d( path, U_UPDATE): self.get_update( blocks[1:])
+		elif e( path, U_LOCK): self.get_lock()
+		elif d( path, U_PULL): self.get_pull()
+		elif e( path, U_INFO): self.get_info()
+		elif e( path, U_STATUS): self.get_status()
+		else: self.response_not_found()
 
 	def do_PUT(self):
 		""" Updates internal data with JSON provided. """
-		with self.lock:
-			path, blocks = self.get_path()
+		path, blocks = self.get_path()
 
-			if path == U_ROOT: self.response_forbidden()
-			elif d( path, U_DATA): self.put_data( blocks[1:])
-			elif d( path, U_UPDATE): self.put_update( blocks[1:])
-			elif e( path, U_PUSH): self.put_push()
-			elif e( path, U_LOCK): self.put_lock()
-			else: self.response_not_found()
+		if path == U_ROOT: self.response_forbidden()
+		elif d( path, U_DATA): self.put_data( blocks[1:])
+		elif d( path, U_UPDATE): self.put_update( blocks[1:])
+		elif e( path, U_PUSH): self.put_push()
+		elif e( path, U_LOCK): self.put_lock()
+		else: self.response_not_found()
 
 	def do_DELETE(self):
 		""" Deletes the data given. """
-		with self.lock:
-			path, blocks = self.get_path()
+		path, blocks = self.get_path()
 
-			if path == U_ROOT: self.response_forbidden()
-			elif d( path, U_DATA): self.delete_data( blocks[1:])
-			elif d( path, U_UPDATE): self.delete_update( blocks[1:])
-			elif e( path, U_LOCK): self.delete_lock()
-			else: self.response_not_found()
+		if path == U_ROOT: self.response_forbidden()
+		elif d( path, U_DATA): self.delete_data( blocks[1:])
+		elif d( path, U_UPDATE): self.delete_update( blocks[1:])
+		elif e( path, U_LOCK): self.delete_lock()
+		else: self.response_not_found()
 	
 	def do_CONNECT(self):
 		# TODO
