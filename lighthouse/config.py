@@ -94,7 +94,10 @@ def _load_from_file( filename):
 		_logger.warn( 'Cannot read file %s with json configuration %s', filename, e)
 		return False
 
-	return _load_from_content( content)
+	r = _load_from_content( content)
+	if r:
+		_logger.info( 'Loading %s', filename)
+	return r
 
 
 def load_configuration():
