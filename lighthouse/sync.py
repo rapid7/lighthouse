@@ -4,6 +4,8 @@ import logging
 
 # Local imports
 import inlock
+import helpers
+import monitor
 
 
 logger = logging.getLogger(__name__)
@@ -25,7 +27,6 @@ class ClusterState:
 		# All instance monitors
 		self.instance_monitors = []
 		inlock.add_lock( self)
-
 
 	@inlock.synchronized
 	def add_instance(self, xaddr):
@@ -51,9 +52,9 @@ class ClusterState:
 
 		# Create a new state for the instance
 		# Instantiate and start a monitor
-		monitor = monitor.Monitor( addr)
-		monitor.start()
-		self.instance_monitors.append( monitor)
+		mon = monitor.Monitor( addr)
+		mon.start()
+		self.instance_monitors.append( mon)
 
 	@inlock.synchronized
 	def get_state(self):
