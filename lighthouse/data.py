@@ -18,6 +18,7 @@ import logging
 import md5
 import threading
 import time
+import copy
 
 # Local imports
 import helpers
@@ -100,10 +101,10 @@ class Data:
 		If no instance is passed, then the datastore is created empty.
 
 		Args:
-			new_data: Data to be used in this instance
+			new_data: Data to be used in this instance, making a copy of it
 			sequence: New sequence to assign or None
 		"""
-		self.data = new_data
+		self.data = copy.deepcopy( new_data)
 		self.version = DataVersion( sequence, self.get_checksum())
 
 	@staticmethod
