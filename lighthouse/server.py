@@ -1,5 +1,5 @@
 #! /usr/bin/python
-# Copyright (c) Viliam Holub, Logentries
+# Copyright (c) 2012, 2013 Viliam Holub, Logentries
 
 """HTTP server implementation.
 
@@ -18,18 +18,17 @@ import time
 import urlparse
 
 # Local imports
-from __init__ import __version__
 from __init__ import SERVER_NAME
-
-# Local imports
+from __init__ import __version__
 import data
 import sync
+import helpers
 
 
 RESPONSE_ABOUT = """
-Lighthouse
+Lighthouse %s
 
-"""
+"""%(__version__)
 
 # Responses
 
@@ -39,6 +38,8 @@ RESPONSE_NOT_FOUND = 'Not Found'
 RESPONSE_NOT_LOCKED = 'Not Locked'
 RESPONSE_NO_CONTENT = 'No Content'
 RESPONSE_LOCKED = 'Locked'
+RESPONSE_CONFLICT = 'Conflicting Request'
+RESPONSE_CONCURRENT = 'Concurrent Update'
 RESPONSE_ACQUIRED = 'Acquired'
 RESPONSE_RELEASED = 'Released'
 RESPONSE_BAD_REQUEST = 'Bad Request'
@@ -52,9 +53,8 @@ U_DATA = '/data'
 U_UPDATE = '/update'
 U_LOCK = '/lock'
 U_VERSION = '/version'
-U_PULL = '/pull'
-U_INFO = '/info'
-U_PUSH = '/push'
+U_COPY = '/copy'
+U_VERSION = '/version'
 U_STATE = '/state'
 
 
@@ -73,48 +73,48 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 
 	def _parse_params(self):
 		try:
-			parsed_path = urlparse.urlparse(self.path)
+			parsed_path = urlparse.urlparse( self.path)
 			self.query_params = dict([p.split('=') for p in parsed_path[4].split('&')])
 		except:
 			self.query_params = {}
 
 	def do_GET(self):
 		""" Processes the GET commands. """
-		path, blocks = self.get_path()
+		path, blocks = self._get_path()
 		self._parse_params()
-		if path == U_ROOT: self.response_plain( RESPONSE_ABOUT)
+		if path == U_ROOT: self._response_plain( RESPONSE_ABOUT)
 		elif d( path, U_DATA): self.get_data( blocks[1:])
 		elif d( path, U_UPDATE): self.get_update( blocks[1:])
 		elif e( path, U_LOCK): self.get_lock()
-		elif d( path, U_PULL): self.get_pull()
-		elif e( path, U_INFO): self.get_info()
+		elif d( path, U_COPY): self.get_copy()
+		elif e( path, U_VERSION): self.get_version()
 		elif e( path, U_STATE): self.get_state()
-		else: self.response_not_found()
+		else: self._response_not_found()
 
 	def do_PUT(self):
 		""" Updates internal data with JSON provided. """
-		path, blocks = self.get_path()
+		path, blocks = self._get_path()
 
-		if path == U_ROOT: self.response_forbidden()
+		if path == U_ROOT: self._response_forbidden()
 		elif d( path, U_DATA): self.put_data( blocks[1:])
 		elif d( path, U_UPDATE): self.put_update( blocks[1:])
-		elif e( path, U_PUSH): self.put_push()
+		elif e( path, U_COPY): self.put_copy()
 		elif e( path, U_LOCK): self.put_lock()
-		else: self.response_not_found()
+		else: self._response_not_found()
 
 	def do_DELETE(self):
 		""" Deletes the data given. """
-		path, blocks = self.get_path()
+		path, blocks = self._get_path()
 
-		if path == U_ROOT: self.response_forbidden()
+		if path == U_ROOT: self._response_forbidden()
 		elif d( path, U_DATA): self.delete_data( blocks[1:])
 		elif d( path, U_UPDATE): self.delete_update( blocks[1:])
 		elif e( path, U_LOCK): self.delete_lock()
-		else: self.response_not_found()
+		else: self._response_not_found()
 	
 	def do_CONNECT(self):
 		# TODO
-		return self.response_not_found()
+		return self._response_not_found()
 
 	#
 	# Lock resource /lock/
@@ -124,34 +124,37 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 		# Lock info
 		name = data.get_lock_code()
 		if name != None:
-			self.response_plain( name)
+			self._response_plain( name)
 		else:
-			self.response_not_found( RESPONSE_NOT_LOCKED)
+			self._response_not_found( RESPONSE_NOT_LOCKED)
 
 	def put_lock(self):
 		""" Put lock """
-		code = self.read_input()
+		code = self._read_input()
 		if not code:
-			# Invalid lock code, delete the lock
-			if data.release_lock():
+			# Missing lock code, delete the lock
+			l = data.release_lock()
+			if l == data.LCK_OK:
 				data.save_data()
-				self.response_plain( RESPONSE_RELEASED)
+				self._response_plain( RESPONSE_RELEASED)
+			elif l == data.LCK_CONCURRENT:
+				self._response_conflict( RESPONSE_CONCURRENT)
 			else:
-				self.response_not_found()
+				self._response_not_found()
 		else:
 			# Lock the resource
 			# Acquiring the same lock again is idempotent
-			if data.try_acquire_lock(code):
-				self.response_plain( RESPONSE_ACQUIRED)
+			if data.try_acquire_lock( code):
+				self._response_plain( RESPONSE_ACQUIRED)
 			else:
-				self.response_forbidden( RESPONSE_LOCKED)
+				self._response_forbidden( RESPONSE_LOCKED)
 
 	def delete_lock(self):
 		# Abort the update
 		if data.abort_update():
-			self.response_plain( RESPONSE_RELEASED)
+			self._response_plain( RESPONSE_RELEASED)
 		else:
-			self.response_not_found( RESPONSE_NOT_LOCKED)
+			self._response_not_found( RESPONSE_NOT_LOCKED)
 
 	#
 	# Data /data/
@@ -172,27 +175,27 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 	def get_data(self, blocks):
 		""" Data - return data """
 		if not self._check_version():
-			return self.response_not_found()
+			return self._response_not_found()
 		subdata = data.get_data( blocks)
 		if subdata:
-			self.response_json( subdata)
+			self._response_json( subdata)
 		else:
-			self.response_not_found()
+			self._response_not_found()
 
 	def put_data(self, blocks):
 		subdata = data.get_data( blocks)
 		if subdata:
-			self.response_forbidden()
+			self._response_forbidden()
 		else:
-			self.response_not_found()
+			self._response_not_found()
 
 	def delete_data(self, blocks):
 		# Check that the resource exists
 		subdata = data.get_data( blocks)
 		if not subdata:
-			self.response_not_found()
+			self._response_not_found()
 		else:
-			self.response_forbidden()
+			self._response_forbidden()
 
 	#
 	# Updates /update/
@@ -203,14 +206,14 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 		specified in URL. """
 		# Ignore update if the lock is not acquired
 		if len(blocks) == 0:
-			return self.response_not_found()
+			return self._response_not_found()
 		# Update does not exist if there is no lock
 		lock_code = data.get_lock_code()
 		if lock_code is None:
-			return self.response_forbidden( RESPONSE_NOT_LOCKED)
+			return self._response_forbidden( RESPONSE_NOT_LOCKED)
 		# Check that the lock is correct
 		if blocks[0] != lock_code:
-			return self.response_forbidden( RESPONSE_INV_LOCK_CODE)
+			return self._response_forbidden( RESPONSE_INV_LOCK_CODE)
 		return False
 
 	def get_update(self, blocks):
@@ -222,9 +225,9 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 		# Retrieve the data
 		subdata = data.get_update( blocks[1:])
 		if subdata:
-			self.response_json( subdata)
+			self._response_json( subdata)
 		else:
-			self.response_not_found()
+			self._response_not_found()
 
 	def put_update(self, blocks):
 		""" Puts new data """
@@ -233,31 +236,15 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 			return
 
 		# Get content
-		content = self.read_input_json()
+		content = self._read_input_json()
 		if content is None:
-			return self.response_bad_request()
+			return self._response_bad_request()
 		# Update with the content given
 		created = data.update_entry_root( blocks[1:], content)
 		if created:
-			self.response_created()
+			self._response_created()
 		else:
-			self.response_not_found()
-
-	def put_push(self):
-		""" Pushes new data """
-
-		# Get content
-		content = self.read_input_json()
-		try:
-			far_data = content['data']
-			far_server_state = data.DataVersion(sequence=content['sequence'], checksum=content['checksum'])
-		except (TypeError, KeyError):
-			return self.response_bad_request()
-
-		# Update with the content given
-		if data.push_data(other_data=far_data, other_server_state=far_server_state):
-			data.save_data()
-		self.response_created()
+			self._response_not_found()
 
 	def delete_update(self, blocks):
 		""" Deletes the given data. Lock must be acquired. """
@@ -266,18 +253,66 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 			return
 
 		# Retrieve content to update with
-		self.read_input()
+		self._read_input()
 		# Do the update
 		created = data.delete_update( blocks[1:])
 		if created:
-			self.response_no_content()
+			self._response_no_content()
 		else:
-			self.response_not_found()
+			self._response_not_found()
+	
+
+
+	#
+	# Copy /copy/
+	#
+
+	def get_copy(self):
+		""" Returns raw data copy. """
+		return self._response_json( data.get_copy())
+
+
+	def put_copy(self):
+		""" Pushes new data """
+
+		# Get content
+		content = self._read_input_json()
+		try:
+			far_data = content['data']
+			far_server_state = data.DataVersion(sequence=content['sequence'], checksum=content['checksum'])
+		except (TypeError, KeyError):
+			return self._response_bad_request()
+
+		# Update with the content given
+		if data.push_data( far_data, far_server_state):
+			data.save_data()
+		self._response_created()
+
+
+	#
+	# Version /version/
+	#
+
+	def get_version(self):
+		""" Returns data with server information without data. """
+		return self._response_json( data.get_copy( get_data=False))
+
+
+	#
+	# State /state/
+	#
+
+	def get_state(self):
+		""" Returns cluster's state. """
+		return self._response_json( sync.cluster_state.get_state())
 
 
 
+	#
+	# Helpers
+	#
 
-	def response(self, status, content_type, text, headers=[]):
+	def _response(self, status, content_type, text, headers=[]):
 		self.send_response( status)
 		self.send_header( 'Content-type', content_type)
 		self.send_header( 'Content-Length', '%s'%len( text))
@@ -287,35 +322,39 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 		self.wfile.write( text)
 		return status
 
-	def response_forbidden( self, response = RESPONSE_FORBIDDEN):
-		return self.response( 403, 'text/plain', response)
+	def _response_forbidden( self, response = RESPONSE_FORBIDDEN):
+		return self._response( 403, 'text/plain', response)
 
-	def response_plain( self, response):
-		return self.response( 200, 'text/plain', response)
+	def _response_conflict( self, response = RESPONSE_CONFLICT):
+		return self._response( 409, 'text/plain', response)
 
-	def response_json( self, response):
-		return self.response( 200, 'application/json', response)
+	def _response_plain( self, response):
+		return self._response( 200, 'text/plain', response)
 
-	def response_created( self, response = RESPONSE_CREATED):
-		return self.response( 201, 'application/json', response)
+	def _response_json( self, response):
+		return self._response( 200, 'application/json',
+				helpers.dump_json( response))
 
-	def response_no_content( self, response = RESPONSE_NO_CONTENT):
-		return self.response( 204, 'application/json', response)
+	def _response_created( self, response = RESPONSE_CREATED):
+		return self._response( 201, 'application/json', response)
 
-	def response_bad_request( self, response = RESPONSE_BAD_REQUEST):
-		return self.response( 400, 'text_plain', response)
+	def _response_no_content( self, response = RESPONSE_NO_CONTENT):
+		return self._response( 204, 'application/json', response)
 
-	def response_not_found( self, response = RESPONSE_NOT_FOUND):
-		return self.response( 404, 'text_plain', response)
+	def _response_bad_request( self, response = RESPONSE_BAD_REQUEST):
+		return self._response( 400, 'text_plain', response)
 
-	def get_path(self):
+	def _response_not_found( self, response = RESPONSE_NOT_FOUND):
+		return self._response( 404, 'text_plain', response)
+
+	def _get_path(self):
 		url = urlparse.urlparse( self.path)
 		components = url.path.split('?',1)[0].split( '/')[1:]
 		if len( components) > 0 and components[-1] == '':
 			components = components[:-1]
 		return url.path, components
 
-	def read_input(self):
+	def _read_input(self):
 		try:
 			size_raw = self.headers.getheader('Content-Length')
 			if size_raw == None:
@@ -328,8 +367,8 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 			return None
 		return read
 
-	def read_input_post(self):
-		sent = self.read_input()
+	def _read_input_post(self):
+		sent = self._read_input()
 		if sent is None:
 			return None
 		try:
@@ -341,9 +380,9 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 			return None
 
 
-	def read_input_json(self):
+	def _read_input_json(self):
 		try:
-			sent = self.read_input()
+			sent = self._read_input()
 			if sent is not None:
 				content = json.loads( sent)
 		except ValueError:
@@ -352,32 +391,6 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 			
 		self.log_message( 'JSON: %s', content)
 		return content
-
-	#
-	# Pull /pull/
-	#
-
-	def get_pull(self):
-		""" Pull - return data with server information and data """
-		return self.response_json( data.get_pull())
-
-	#
-	# Info /info/
-	#
-
-	def get_info(self):
-		""" Info - return data with server information without data"""
-		return self.response_json( data.get_pull(get_data=False))
-
-
-
-	#
-	# State /state/
-	#
-
-	def get_state(self):
-		""" Info - return data with server information without data."""
-		return self.response_json( sync.cluster_state.get_state())
 
 
 

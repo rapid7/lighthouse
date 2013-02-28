@@ -16,7 +16,6 @@ import logging
 import data
 import server
 import sync
-import state
 
 from __init__ import __version__
 from __init__ import SERVER_NAME
@@ -76,12 +75,12 @@ if __name__ == '__main__':
 		if name == "--seeds":
 			seeds = value.split( ',')
 			for seed in seeds:
-				r = sync.cluster.add_instance( seed)
-				if !r:
+				r = sync.cluster_state.add_instance( seed)
+				if not r:
 					die( 'Invalid seed %s'%seed)
 	data.load_data()
 
-	sync.start()
+	sync.init_cluster_state( 'this IP:port') #XXX
+
 	server.run( port=port)
-	sync.stop()
 

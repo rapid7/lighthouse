@@ -4,16 +4,16 @@
 
 We keep two instances of data. One represents currect state and is immutable.
 The other one represents the next state of the data store, being modified by a
-clicked holding a lock.
+client holding a lock.
 
 This data store is protected by a lock to avoid race conditions.
 
+Data can be immediately update asynchronously via push operation.
 
 """
 
 # System imports
 from __future__ import with_statement
-import _json as json
 import copy
 import datetime
 import glob
@@ -23,6 +23,14 @@ import os
 import threading
 import time
 
+# Local imports
+import helpers
+
+# Lock error messages
+LCK_OK = 0 # All OK
+LCK_NONE = 1 # No lock or lock expired
+LCK_CONCURRENT = 2 # Concurrent modification
+
 
 # Lock timeout in milliseconds
 LOCK_TIMEOUT = 30000
@@ -31,11 +39,16 @@ DATA_DIR_GLOB = '????????T??????.??????.json'
 DATA_DIR_STRFTIME = '%Y%m%dT%H%M%S.%f.json'
 
 # Logging
-logger = logging.getLogger(__name__)
+_logger = logging.getLogger(__name__)
 
-# Lock name, None is the lock is not acquired
-_lock_timestamp = 0
+# Client's lock name, None if the lock is not acquired
 _lock_code = None
+# Timestamp of client's lock acquire
+_lock_timestamp = 0
+
+# Path where we store configuration snapshots. None if undefined.
+_data_dir = None
+
 
 # Threading lock object(s)
 # FIXME: Locking can be more optimised, eg. different locks for 
@@ -46,73 +59,53 @@ _lock = threading.RLock() # reentrant lock, read/write lock would be more handy,
                           # but python std lib doesn't support such locks
 
 
-_data_dir = None
 
 
-def load_json(s):
-	return json.loads( s)
 
-def dump_json(jsn):
+def _create_data_dir( data_dir):
+	"""Creates the directory safely.
 	"""
-	Converts the configuration into human-readable string. This conversion
-	must be predictable. This means that the same configuration will always
-	be converted into the same string.
-	"""
-	return json.dumps( jsn, sort_keys=True, indent=2, check_circular=False)
-
-
-def _create_data_dir(data_dir):
 	try:
-		os.makedirs(data_dir)
+		os.makedirs( data_dir)
 	except OSError as e:
 		if e.errno == 17: # File already exists
 			return True
-		logger.warn("Cannot create directory: [%s] : %s", data_dir, e)
+		_logger.warn( 'Cannot create directory: %s: %s', data_dir, e)
 		return False
 	return True
 
 
 def set_data_dir(data_dir):
+	"""Sets and creates the data directory before start.
+	"""
 	global _data_dir
+	_data_dir = data_dir
 
 	if data_dir is None:
-		with _lock:
-			_data_dir = None
 		return None
 
-	if not _create_data_dir(data_dir):
-		with _lock:
-			_data_dir = None
+	if not _create_data_dir( data_dir):
+		_data_dir = None
 		return False
-
-	_data_dir = data_dir
 
 	return True
 
 
-class DataVersion(object):
+class DataVersion:
 	"""
 	The state we keep for each server. It consists of a number and a
 	checksum of the data store.
 	"""
-	def __init__(self, sequence = None, checksum=None):
-		if sequence is None or checksum is None:
-			raise TypeError() # FIXME: Really TypeError ?
+	def __init__(self, sequence=0, checksum=''):
 		self.sequence = int(sequence)
 		self.checksum = checksum
 
 	def __cmp__(self, other):
-		"""
-		We compare states on sequence first, then checksum.
-		"""
-		if other is None:
-			return +1
-
+		""" Compares versions on sequence first, then checksum. """
 		if self.sequence > other.sequence:
 			return +1
 		elif self.sequence < other.sequence:
 			return -1
-
 		if self.checksum > other.checksum:
 			return +1
 		elif self.checksum < other.checksum:
@@ -126,19 +119,36 @@ class DataVersion(object):
 		}
 
 	def clone(self):
-		return DataVersion(sequence=self.sequence, checksum=self.checksum)
+		return DataVersion( sequence=self.sequence, checksum=self.checksum)
 
 
 class Data:
-	def __init__( self, init_data = None):
-		if init_data:
-			self.data = copy.deepcopy( init_data.data)
+	"""Data store.
+
+	Data store consists of data itselfs and its version.
+	"""
+
+	def __init__( self, copy_data=None, sequence=None):
+		"""Initializes the data store.
+
+		If no instance is passed, then the datastore is created empty.
+
+		Args:
+			copy_data: Other instance whose data should be copied
+				into this new instance or None
+			sequence: New sequence to assign or None
+		"""
+		if copy_data:
+			self.data = copy.deepcopy( copy_data.data)
+			if sequence:
+				self.version = DataVersion( sequence, self.get_checksum())
 		else:
 			self.data = {}
+			self.version = DataVersion( 0, self.get_checksum())
 
 	def load( self, str_data):
 		try:
-			self.data = load_json( str_data)
+			self.data = helpers.load_json( str_data)
 		except ValueError:
 			return False
 		return True
@@ -167,14 +177,6 @@ class Data:
 				return None
 		return node
 
-	@staticmethod
-	def dump_json(node):
-		if node != None:
-			return dump_json( node)
-		else:
-			return None
-
-
 	def get( self, path):
 		""" Retrieves data subsection.
 
@@ -184,21 +186,15 @@ class Data:
 		Returns None if the path is invalid.
 		"""
 		node = self.traverse( self.data, path)
-		return self.dump_json(node)
-
-
-	def pull( self):
-		return self.traverse( self.data, [])
-
+		return node
 
 	def get_checksum( self):
 		"""
 		Calculates a checksum of the data in a predictable way.
 		"""
 		m = md5.new()
-		m.update( self.dump_json( self.data))
+		m.update( helpers.dump_json( self.data))
 		return m.hexdigest()
-
 
 	def set( self, path, content):
 		""" Stores the content given and the position specified.
@@ -268,9 +264,12 @@ _data = Data()
 # Update structure
 _update = Data()
 
-_server_state = DataVersion(sequence=0, checksum=_data.get_checksum())
-_uploaded_state = None
 
+
+
+#
+# Data retrieval functions
+#
 
 def get_data( path):
 	global _data, _lock
@@ -287,15 +286,12 @@ def update_entry_root( path, content):
 	with _lock:
 		return _update.set( path, content)
 
-def delete_data( path):
-	global _data, _lock
-	with _lock:
-		return _data.delete( path)
-
 def delete_update( path):
 	global _update, _lock
 	with _lock:
 		return _update.delete( path)
+
+
 #
 # Lock management
 #
@@ -305,6 +301,13 @@ def _timestamp():
 
 
 def get_lock_code():
+	"""Returns lock code or None if there is no lock
+
+	The lock is checked for expiration.
+
+	Returns:
+		Log code if successful, None otherwise
+	"""
 	global _lock_timestamp
 	global _lock_code
 	global _update
@@ -324,6 +327,13 @@ def get_lock_code():
 			return _lock_code
 
 def try_acquire_lock( code):
+	"""Tries to acquire a new lock with the code given.
+
+	Args:
+		code: lock code
+	Returns:
+		True if siccessful
+	"""
 	global _data
 	global _update
 	global _lock_code
@@ -346,15 +356,12 @@ def try_acquire_lock( code):
 		return True
 
 
-def _inc_server_state():
-	global _server_state
-
-	sequence = _server_state.sequence + 1
-	checksum = _data.get_checksum()
-	_server_state = DataVersion(sequence=sequence, checksum=checksum)
-
 
 def release_lock():
+	"""Releases the client's lock.
+
+	New data are commited.
+	"""
 	global _data
 	global _update
 	global _server_state, _uploaded_state
@@ -363,20 +370,22 @@ def release_lock():
 
 	with _lock:
 		if get_lock_code() is None:
-			return False
+			return LCK_NONE
 
-		# TODO
+		# Check that we can update data, otherwise return concurrent error
+		if not _data.version == _update.version:
+			return LCK_CONCURRENT
+
 		# Do the update of internal structure
-		_data  = _update
-		_inc_server_state()
-		_uploaded_state = _server_state
+		_data = Data( _update, _update.version.sequence+1)
 		_update = Data()
 		_lock_timestamp = 0
-		return True
+		return LCK_OK
 
 
 def abort_update():
-	global _data
+	"""Terminates the current update.
+	"""
 	global _update
 	global _lock_timestamp
 	global _lock
@@ -390,71 +399,68 @@ def abort_update():
 
 
 #FIXME: data is both content of the request as a dict or instance of Data here
-def push_data( other_data, other_server_state):
+def push_data( other_data, other_version):
 	global _data
 	global _server_state
 	global _lock
 	with _lock:
-		if other_server_state <= _server_state:
+		if other_version <= _server_state:
 			return False
 		new_data = Data()
 		new_data.data = other_data # Note: other_data must not be used or modified later
 		_data = new_data
-		_server_state = other_server_state
+		_server_state = other_version
 		return True
 
 
 def _load_from_file():
 	global _data_dir
 
+	# Do not read file if there is no data path defined
 	if _data_dir is None:
 		return None
 
 	dir_glob = _data_dir +'/' +DATA_DIR_GLOB
-	logger.debug("data dir glob: %s", dir_glob)
+	_logger.debug( 'Data dir glob: %s', dir_glob)
+
 	files = glob.glob( dir_glob)
 	for name in sorted( files, reverse=True):
 		try:
 			with open( name, 'r') as f:
-				content = load_json( f.read())
-				if content['checksum'] and content['sequence'] and content['data']:
-					logger.info('Uploaded configuration: [%s]', name)
+				content = helpers.load_json( f.read())
+				#d = Data.from_copy( content)
+				#if d:
+				if content['version'] and content['data']:
+					_logger.info( 'Loading state from %s', name)
 					return content
 		except (IOError, ValueError, KeyError) as e:
-			logger.warn("Cannot read file %s with json configuration: %s", name, e)
-	logger.warn('No configuration found')
-	return False
+			_logger.warn( 'Cannot read file %s with json configuration %s', name, e)
+	_logger.warn('No configuration found')
+	return None
 
 
 def _save_to_file():
 	global _data_dir
-	global _data, _server_state
 	global _lock
 
+	# Don't write if there's no destination
 	if _data_dir is None:
-		return None
+		return False
 
-	data, server_state = None, None
-	with _lock:
-		data = _data
-		server_state = _server_state
-	if data is None:
-		return None
-	x = {
-		'sequence':server_state.sequence,
-		'checksum':server_state.checksum,
-		'data':data.data,
-	}
-	file_name = _data_dir + '/' + datetime.datetime.now().strftime(DATA_DIR_STRFTIME)
+	# Get a raw copy of all data
+	data_copy = get_copy()
+
+	# Write this configuration
+	file_name = _data_dir + '/' + datetime.datetime.now().strftime( DATA_DIR_STRFTIME)
 	with open(file_name, 'w') as f:
-		f.write(dump_json(x))
+		f.write( helpers.dump_json( data_copy))
 	return True
 
 
 def load_data():
 	content = _load_from_file()
 	if content:
-		return push_data(other_server_state=DataVersion(sequence=content['sequence'], checksum=content['checksum']), other_data=content['data'])
+		return push_data( DataVersion( sequence=content[ 'sequence'], checksum=content[ 'checksum']), content[ 'data'])
 	return False
 
 
@@ -462,46 +468,30 @@ def save_data():
 	return _save_to_file()
 
 
-def get_pull( get_data = True):
+def get_copy( get_data=True):
+	"""Returns raw copy of current data, including version information.
+
+	Args:
+		get_data: include complete copy of data store
+	"""
 	global _data, _server_state
 	global _lock
 
 	with _lock:
-		pull = {
-			'sequence':_server_state.sequence,
-			'checksum':_server_state.checksum,
-		}
+		response = {}
+		# Collect data version
+		response[ 'version'] = _data.version.to_dict()
+		# Collect data if required
 		if get_data:
-			pull['data'] = _data.pull()
-		return dump_json(pull)
+			response[ 'data'] = _data.data
+		# Return response
+		return response
 
 
-
-def dump_time(time):
-	if time is None:
-		return None
-	return time.strftime("%Y%m%dT%H%M%S")
-
-
-class PushInfo(object):
-	def __init__(self, state=None, uploaded=None, data=None):
-		self.state = state
-		self.uploaded = uploaded
-		self.data = data
-
-
-def cur_state():
-	"""Returns the current state of all data.
-
-	That contains current data, sequence, checksum, and uploaded state.
+def cur_data():
+	"""Returns the current data store. It is immutable thus safe for other
+	threads to access it.
 	"""
-	global _data, _server_state, _uploaded_state
-	global _lock
-
-	s = PushInfo()
-	with _lock:
-		s.data = _data.data
-		s.state = _server_state
-		s.uploaded = _uploaded_state
-	return s
+	global _data
+	return _data
 
