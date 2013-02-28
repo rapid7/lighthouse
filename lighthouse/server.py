@@ -14,6 +14,7 @@ import SocketServer
 import _json as json
 import sys
 import threading
+import socket
 import time
 import urlparse
 
@@ -384,10 +385,14 @@ class ThreadedHTTPServer(SocketServer.ThreadingMixIn, BaseHTTPServer.HTTPServer)
 	""" Handles requests in separate threads to avoid blocks. """
 
 
-def run( port=8001):
+def run( host='', port=8001):
 	LighthouseRequestHandler.server_version = SERVER_NAME +'/' +__version__
-	bind_address = ( '', port)
-	httpd = ThreadedHTTPServer( bind_address, LighthouseRequestHandler)
+	bind_address = (host, port)
+	try:
+		httpd = ThreadedHTTPServer( bind_address, LighthouseRequestHandler)
+	except socket.error, e:
+		print 'Cannot start server: ', e
+		return
 	try:
 		httpd.serve_forever()
 	except KeyboardInterrupt:

@@ -64,7 +64,7 @@ if __name__ == '__main__':
 	except getopt.GetoptError, err:
 		die( 'Parameter error: ' +str( err))
 	port = 8001
-	bind = ''
+	bind = 'localhost'
 	for name, value in optlist:
 		if name == "--help":
 			print_usage()
@@ -83,8 +83,10 @@ if __name__ == '__main__':
 				if not r:
 					die( 'Invalid seed %s'%seed)
 
-	sync.init_cluster_state( bind)
+	host = '%s:%s'%(bind, port)
+
+	sync.init_cluster_state( host)
 	config.load_configuration()
 
-	server.run( port=port)
+	server.run( bind, port)
 
