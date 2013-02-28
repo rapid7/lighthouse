@@ -13,9 +13,9 @@ import sys
 import logging
 
 # Local imports
-import data
 import server
 import sync
+import config
 
 from __init__ import __version__
 from __init__ import SERVER_NAME
@@ -30,6 +30,7 @@ USAGE = """
 --data.d    path to configuration files
 --port=     port we listen on
 --seeds=    other instances in the cluster, comma-separated
+--bind=     IP[:port] where to bind the server
 """
 
 # Exit codes
@@ -59,28 +60,31 @@ def print_usage( version_only=False):
 if __name__ == '__main__':
 	logging.basicConfig(level=logging.DEBUG, format=LOG_FORMAT, datefmt="%Y-%m-%d %H:%M:%S")
 	try:
-		optlist, args = getopt.gnu_getopt( sys.argv[1:], '', 'help version data.d= port= seeds='.split())
+		optlist, args = getopt.gnu_getopt( sys.argv[1:], '', 'help version data.d= port= seeds= bind='.split())
 	except getopt.GetoptError, err:
 		die( 'Parameter error: ' +str( err))
 	port = 8001
+	bind = ''
 	for name, value in optlist:
 		if name == "--help":
 			print_usage()
 		if name == "--version":
 			print_usage( True)
 		if name == "--data.d":
-			data.set_data_dir( value)
+			config.set_data_dir( value)
 		if name == "--port":
 			port = int( value)
+		if name == "--bind":
+			bind = value
 		if name == "--seeds":
 			seeds = value.split( ',')
 			for seed in seeds:
 				r = sync.cluster_state.add_instance( seed)
 				if not r:
 					die( 'Invalid seed %s'%seed)
-	data.load_data()
 
-	sync.init_cluster_state( 'this IP:port') #XXX
+	sync.init_cluster_state( bind)
+	config.load_configuration()
 
 	server.run( port=port)
 

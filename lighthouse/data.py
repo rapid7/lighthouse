@@ -14,12 +14,8 @@ Data can be immediately update asynchronously via push operation.
 
 # System imports
 from __future__ import with_statement
-import copy
-import datetime
-import glob
 import logging
 import md5
-import os
 import threading
 import time
 
@@ -34,9 +30,6 @@ LCK_CONCURRENT = 2 # Concurrent modification
 
 # Lock timeout in milliseconds
 LOCK_TIMEOUT = 30000
-# Glob format of a data file
-DATA_DIR_GLOB = '????????T??????.??????.json'
-DATA_DIR_STRFTIME = '%Y%m%dT%H%M%S.%f.json'
 
 # Logging
 _logger = logging.getLogger(__name__)
@@ -45,9 +38,6 @@ _logger = logging.getLogger(__name__)
 _lock_code = None
 # Timestamp of client's lock acquire
 _lock_timestamp = 0
-
-# Path where we store configuration snapshots. None if undefined.
-_data_dir = None
 
 
 # Threading lock object(s)
@@ -61,34 +51,6 @@ _lock = threading.RLock() # reentrant lock, read/write lock would be more handy,
 
 
 
-
-def _create_data_dir( data_dir):
-	"""Creates the directory safely.
-	"""
-	try:
-		os.makedirs( data_dir)
-	except OSError as e:
-		if e.errno == 17: # File already exists
-			return True
-		_logger.warn( 'Cannot create directory: %s: %s', data_dir, e)
-		return False
-	return True
-
-
-def set_data_dir(data_dir):
-	"""Sets and creates the data directory before start.
-	"""
-	global _data_dir
-	_data_dir = data_dir
-
-	if data_dir is None:
-		return None
-
-	if not _create_data_dir( data_dir):
-		_data_dir = None
-		return False
-
-	return True
 
 
 class DataVersion:
@@ -118,6 +80,10 @@ class DataVersion:
 			'checksum': self.checksum,
 		}
 
+	@staticmethod
+	def from_dict( d):
+		return DataVersion( d['sequence'], d['checksum'])
+
 	def clone(self):
 		return DataVersion( sequence=self.sequence, checksum=self.checksum)
 
@@ -128,23 +94,21 @@ class Data:
 	Data store consists of data itselfs and its version.
 	"""
 
-	def __init__( self, copy_data=None, sequence=None):
+	def __init__( self, new_data={}, sequence=0):
 		"""Initializes the data store.
 
 		If no instance is passed, then the datastore is created empty.
 
 		Args:
-			copy_data: Other instance whose data should be copied
-				into this new instance or None
+			new_data: Data to be used in this instance
 			sequence: New sequence to assign or None
 		"""
-		if copy_data:
-			self.data = copy.deepcopy( copy_data.data)
-			if sequence:
-				self.version = DataVersion( sequence, self.get_checksum())
-		else:
-			self.data = {}
-			self.version = DataVersion( 0, self.get_checksum())
+		self.data = new_data
+		self.version = DataVersion( sequence, self.get_checksum())
+
+	@staticmethod
+	def copy( inst):
+		return Data( inst.data, inst.version.sequence)
 
 	def load( self, str_data):
 		try:
@@ -352,7 +316,7 @@ def try_acquire_lock( code):
 		# If it is a new lock, copy its name and data to update
 		if current_lock != code:
 			_lock_code = code
-			_update = Data( _data)
+			_update = Data.copy( _data)
 		return True
 
 
@@ -364,7 +328,6 @@ def release_lock():
 	"""
 	global _data
 	global _update
-	global _server_state, _uploaded_state
 	global _lock_timestamp
 	global _lock
 
@@ -372,14 +335,26 @@ def release_lock():
 		if get_lock_code() is None:
 			return LCK_NONE
 
+		# Check for source version
+		ch_old = _data.version == _update.version
+
+		# Increase sequence number for updated data store
+		_update.version.sequence += 1
+		# Create a copy of updated data store with new version
+		new_data = Data.copy( _update)
+
+		# Check for destination version
+		ch_new = new_data.version == _update.version
+
 		# Check that we can update data, otherwise return concurrent error
-		if not _data.version == _update.version:
+		if not ch_old and not ch_new:
 			return LCK_CONCURRENT
 
 		# Do the update of internal structure
-		_data = Data( _update, _update.version.sequence+1)
+		_data = new_data
 		_update = Data()
 		_lock_timestamp = 0
+
 		return LCK_OK
 
 
@@ -398,74 +373,24 @@ def abort_update():
 		return True
 
 
-#FIXME: data is both content of the request as a dict or instance of Data here
-def push_data( other_data, other_version):
-	global _data
-	global _server_state
-	global _lock
-	with _lock:
-		if other_version <= _server_state:
-			return False
-		new_data = Data()
-		new_data.data = other_data # Note: other_data must not be used or modified later
-		_data = new_data
-		_server_state = other_version
-		return True
+def push_data( copy):
+	global _logger, _data, _lock
 
-
-def _load_from_file():
-	global _data_dir
-
-	# Do not read file if there is no data path defined
-	if _data_dir is None:
-		return None
-
-	dir_glob = _data_dir +'/' +DATA_DIR_GLOB
-	_logger.debug( 'Data dir glob: %s', dir_glob)
-
-	files = glob.glob( dir_glob)
-	for name in sorted( files, reverse=True):
-		try:
-			with open( name, 'r') as f:
-				content = helpers.load_json( f.read())
-				#d = Data.from_copy( content)
-				#if d:
-				if content['version'] and content['data']:
-					_logger.info( 'Loading state from %s', name)
-					return content
-		except (IOError, ValueError, KeyError) as e:
-			_logger.warn( 'Cannot read file %s with json configuration %s', name, e)
-	_logger.warn('No configuration found')
-	return None
-
-
-def _save_to_file():
-	global _data_dir
-	global _lock
-
-	# Don't write if there's no destination
-	if _data_dir is None:
+	try:
+		copy_ver = DataVersion.from_dict( copy[ 'version'])
+		copy_data = copy[ 'data']
+	except KeyError:
+		_logger.error( 'Invalid or missing version in copy')
 		return False
 
-	# Get a raw copy of all data
-	data_copy = get_copy()
 
-	# Write this configuration
-	file_name = _data_dir + '/' + datetime.datetime.now().strftime( DATA_DIR_STRFTIME)
-	with open(file_name, 'w') as f:
-		f.write( helpers.dump_json( data_copy))
-	return True
-
-
-def load_data():
-	content = _load_from_file()
-	if content:
-		return push_data( DataVersion( sequence=content[ 'sequence'], checksum=content[ 'checksum']), content[ 'data'])
-	return False
-
-
-def save_data():
-	return _save_to_file()
+	with _lock:
+		# Do not accept configuration if it's older
+		if copy_ver <= _data.version:
+			return False
+		# Configuration is newer, upload it
+		_data = Data( copy_data, copy_ver.sequence)
+		return True
 
 
 def get_copy( get_data=True):
@@ -474,8 +399,7 @@ def get_copy( get_data=True):
 	Args:
 		get_data: include complete copy of data store
 	"""
-	global _data, _server_state
-	global _lock
+	global _data, _lock
 
 	with _lock:
 		response = {}

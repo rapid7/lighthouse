@@ -23,6 +23,7 @@ from __init__ import __version__
 import data
 import sync
 import helpers
+import config
 
 
 RESPONSE_ABOUT = """
@@ -135,7 +136,10 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 			# Missing lock code, delete the lock
 			l = data.release_lock()
 			if l == data.LCK_OK:
-				data.save_data()
+				# Let other instances know
+				sync.cluster_state.force_push()
+				# Save new configuration
+				config.save_configuration()
 				self._response_plain( RESPONSE_RELEASED)
 			elif l == data.LCK_CONCURRENT:
 				self._response_conflict( RESPONSE_CONCURRENT)
@@ -160,39 +164,25 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 	# Data /data/
 	#
 
-	def _check_version(self):
-		query_sequence, query_checksum = self.query_params.get('sequence'), self.query_params.get('checksum')
-		if query_sequence or query_checksum:
-			sequence, checksum = data.get_version() # FIXME
-			try:
-				query_sequence = int(query_sequence)
-			except ValueError:
-				query_sequence = None
-			if (sequence, checksum) != (query_sequence, query_checksum):
-				return False
-		return True
-
 	def get_data(self, blocks):
 		""" Data - return data """
-		if not self._check_version():
-			return self._response_not_found()
 		subdata = data.get_data( blocks)
-		if subdata:
-			self._response_json( subdata)
-		else:
+		if subdata is None:
 			self._response_not_found()
+		else:
+			self._response_json( subdata)
 
 	def put_data(self, blocks):
 		subdata = data.get_data( blocks)
-		if subdata:
-			self._response_forbidden()
-		else:
+		if subdata is None:
 			self._response_not_found()
+		else:
+			self._response_forbidden()
 
 	def delete_data(self, blocks):
 		# Check that the resource exists
 		subdata = data.get_data( blocks)
-		if not subdata:
+		if subdata is None:
 			self._response_not_found()
 		else:
 			self._response_forbidden()
@@ -224,10 +214,10 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 
 		# Retrieve the data
 		subdata = data.get_update( blocks[1:])
-		if subdata:
-			self._response_json( subdata)
-		else:
+		if subdata is None:
 			self._response_not_found()
+		else:
+			self._response_json( subdata)
 
 	def put_update(self, blocks):
 		""" Puts new data """
@@ -277,15 +267,10 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 
 		# Get content
 		content = self._read_input_json()
-		try:
-			far_data = content['data']
-			far_server_state = data.DataVersion(sequence=content['sequence'], checksum=content['checksum'])
-		except (TypeError, KeyError):
-			return self._response_bad_request()
 
 		# Update with the content given
-		if data.push_data( far_data, far_server_state):
-			data.save_data()
+		if data.push_data( content):
+			config.save_configuration()
 		self._response_created()
 
 
