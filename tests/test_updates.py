@@ -30,7 +30,7 @@ def get( url, status, expected=None):
 
 	if f.getcode() != status:
 		die( 'GET', url, 'Status mishmash: %s, expected %s'%( f.getcode(), status))
-	if expected and data_cmp != expected:
+	if not expected is None and data_cmp != expected:
 		print len(expected), len(data)
 		die( 'GET', url, 'Content mishmash:"%s", expected "%s"'%( data_cmp, expected))
 	print 'GET  %s  %s -> %s'%(url, f.getcode(), data.replace('\n', '').replace('  ', ''))
@@ -118,7 +118,7 @@ block( 'Some basic tests to ensure all is ok')
 get( '/lock/', 200, LOCKCODE)          # Return lock
 get( '/lock/foo', 404)                 # Invalid resource under the lock
 get( '/update/', 404)                  # Update requires lock name
-get( '/update/'+LOCKCODE, 200, {})     # Update contains empty data
+get( '/update/'+LOCKCODE, 200, '{}')   # Update contains empty data
 get( '/update/foo', 403)               # Not a lock's name
 get( '/update/foo/', 403)              # Not a lock's name
 get( '/update/'+LOCKCODE+'/foo', 404)  # Unknown field
@@ -145,8 +145,8 @@ get( '/update/'+LOCKCODE+'/a', 200, '1')
 get( '/update/'+LOCKCODE+'/a/', 200, '1')
 get( '/update/'+LOCKCODE+'/b', 200, '"2"')
 get( '/update/'+LOCKCODE+'/b/', 200, '"2"')
-get( '/update/'+LOCKCODE+'/c', 200, '')
-get( '/update/'+LOCKCODE+'/c/', 200, '')
+get( '/update/'+LOCKCODE+'/c', 200, '""')
+get( '/update/'+LOCKCODE+'/c/', 200, '""')
 get( '/update/'+LOCKCODE+'/d', 404)           # Does not exist
 get( '/update/'+LOCKCODE+'/d/', 404)          # Does not exist
 put( '/update/'+LOCKCODE+'/d', '3', 201)      # Extend the current dict with a number
@@ -207,6 +207,27 @@ get( '/update/'+LOCKCODE+'/e/q', 200, '"w"')  # Make sure data got copied
 delete( '/update/'+LOCKCODE+'/e/q', 204)      # Delete one field
 delete( '/lock/', 200)           # Abort the transaction
 get( '/data/e/q', 200, '"w"')    # Make sure data is still there
+
+#
+block( 'Test push/pull copy and state')
+#
+
+# Read the configuration
+C = '{"data":{"c":"","d":3,"e":{"q":"w"}},"version":{"checksum":"9635212a5b654e8efff3e81475c1aa69","sequence":2}}'
+S = '{"cluster":[],"version":{"checksum":"9635212a5b654e8efff3e81475c1aa69","sequence":2}}'
+get( '/copy/', 200, C)
+get( '/state/', 200, S)
+# Put copy with the same version - should be ignored
+put( '/copy/', C, 201)
+get( '/copy/', 200, C)
+get( '/state/', 200, S)
+# Put copy with newer sequence - should be accepted
+C = '{"data":{"c":"","d":3,"e":{"q":"w"}},"version":{"checksum":"9635212a5b654e8efff3e81475c1aa69","sequence":6}}'
+S = '{"cluster":[],"version":{"checksum":"9635212a5b654e8efff3e81475c1aa69","sequence":6}}'
+put( '/copy/', C, 201)
+get( '/copy/', 200, C)
+get( '/state/', 200, S)
+
 
 print
 print 'All tests passed'
