@@ -13,6 +13,7 @@ import BaseHTTPServer
 import SocketServer
 import _json as json
 import sys
+import logging
 import threading
 import socket
 import time
@@ -34,6 +35,7 @@ Lighthouse %s
 
 # Responses
 
+RESPONSE_ACCEPTED = 'Accepted'
 RESPONSE_FORBIDDEN = 'Forbidden'
 RESPONSE_NOT_LOCKED = 'Not Locked'
 RESPONSE_NOT_FOUND = 'Not Found'
@@ -54,10 +56,11 @@ U_ROOT = '/'
 U_DATA = '/data'
 U_UPDATE = '/update'
 U_LOCK = '/lock'
-U_VERSION = '/version'
 U_COPY = '/copy'
-U_VERSION = '/version'
 U_STATE = '/state'
+
+
+_logger = logging.getLogger(__name__)
 
 
 def d( path, beginning):
@@ -89,7 +92,6 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 		elif d( path, U_UPDATE): self.get_update( blocks[1:])
 		elif e( path, U_LOCK): self.get_lock()
 		elif d( path, U_COPY): self.get_copy()
-		elif e( path, U_VERSION): self.get_version()
 		elif e( path, U_STATE): self.get_state()
 		else: self._response_not_found()
 
@@ -102,6 +104,7 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 		elif d( path, U_UPDATE): self.put_update( blocks[1:])
 		elif e( path, U_COPY): self.put_copy()
 		elif e( path, U_LOCK): self.put_lock()
+		elif e( path, U_STATE): self.put_state()
 		else: self._response_not_found()
 
 	def do_DELETE(self):
@@ -251,7 +254,6 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 			self._response_no_content()
 		else:
 			self._response_not_found()
-	
 
 
 	#
@@ -261,7 +263,6 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 	def get_copy(self):
 		""" Returns raw data copy. """
 		return self._response_json( data.get_copy())
-
 
 	def put_copy(self):
 		""" Pushes new data """
@@ -276,21 +277,24 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 
 
 	#
-	# Version /version/
-	#
-
-	def get_version(self):
-		""" Returns data with server information without data. """
-		return self._response_json( data.get_copy( get_data=False))
-
-
-	#
 	# State /state/
 	#
 
 	def get_state(self):
-		""" Returns cluster's state. """
-		return self._response_json( sync.cluster_state.get_state())
+		""" Returns version information and cluster state. """
+		response = data.get_copy( get_data=False)
+		response[ 'cluster'] = sync.cluster_state.get_state()
+		return self._response_json( response)
+
+	def put_state(self):
+		""" Accepts cluster state from a different instance. """
+		# Get content
+		content = self._read_input_json()
+
+		if sync.cluster_state.update_state_json( content):
+			self._response_plain( RESPONSE_ACCEPTED)
+		else:
+			self._response_bad_request()
 
 
 
@@ -385,14 +389,14 @@ class ThreadedHTTPServer(SocketServer.ThreadingMixIn, BaseHTTPServer.HTTPServer)
 	""" Handles requests in separate threads to avoid blocks. """
 
 
-def run( host='', port=8001):
+def run( bind_address):
 	LighthouseRequestHandler.server_version = SERVER_NAME +'/' +__version__
-	bind_address = (host, port)
 	try:
 		httpd = ThreadedHTTPServer( bind_address, LighthouseRequestHandler)
 	except socket.error, e:
-		print 'Cannot start server: ', e
+		_logger.critical( 'Cannot start server %s:%s: %s', bind_address[0], bind_address[1], e)
 		return
+	_logger.info( 'Starting server on %s:%s', bind_address[0], bind_address[1])
 	try:
 		httpd.serve_forever()
 	except KeyboardInterrupt:

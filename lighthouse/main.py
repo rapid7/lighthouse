@@ -16,6 +16,7 @@ import logging
 import server
 import sync
 import config
+import helpers
 
 from __init__ import __version__
 from __init__ import SERVER_NAME
@@ -28,7 +29,6 @@ USAGE = """
 --help      prints help and exits
 --version   prints version information and exits
 --data.d    path to configuration files
---port=     port we listen on
 --seeds=    other instances in the cluster, comma-separated
 --bind=     IP[:port] where to bind the server
 """
@@ -60,11 +60,11 @@ def print_usage( version_only=False):
 if __name__ == '__main__':
 	logging.basicConfig(level=logging.DEBUG, format=LOG_FORMAT, datefmt="%Y-%m-%d %H:%M:%S")
 	try:
-		optlist, args = getopt.gnu_getopt( sys.argv[1:], '', 'help version data.d= port= seeds= bind='.split())
+		optlist, args = getopt.gnu_getopt( sys.argv[1:], '', 'help version data.d= seeds= bind='.split())
 	except getopt.GetoptError, err:
 		die( 'Parameter error: ' +str( err))
-	port = 8001
-	bind = 'localhost'
+	bind = 'localhost:8001'
+	seeds = []
 	for name, value in optlist:
 		if name == "--help":
 			print_usage()
@@ -72,21 +72,23 @@ if __name__ == '__main__':
 			print_usage( True)
 		if name == "--data.d":
 			config.set_data_dir( value)
-		if name == "--port":
-			port = int( value)
 		if name == "--bind":
 			bind = value
 		if name == "--seeds":
 			seeds = value.split( ',')
-			for seed in seeds:
-				r = sync.cluster_state.add_instance( seed)
-				if not r:
-					die( 'Invalid seed %s'%seed)
 
-	host = '%s:%s'%(bind, port)
+	host, port = helpers.normalize_addr( bind)
+	if host is None:
+		die( 'Invalid binding address %s'%bind)
 
-	sync.init_cluster_state( host)
+	sync.init_cluster_state( '%s:%s'%(host, port))
+
+	# FIXME avoid adding these seeds in cluster
+	for seed in seeds:
+		r = sync.cluster_state.add_instance( seed)
+
+	# Load old configuration
 	config.load_configuration()
-
-	server.run( bind, port)
+	# Run the server
+	server.run( ( host, port))
 

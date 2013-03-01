@@ -6,7 +6,10 @@ import urllib2
 import logging
 import datetime
 import sys
+import socket
 import traceback
+
+DEFAULT_PORT = 8001
 
 _logger = logging.getLogger(__name__)
 
@@ -33,7 +36,7 @@ def push( address, content):
 	Retruns:
 		True if successful
 	"""
-	url = _url( address, '/push')
+	url = _url( address, '/copy')
 	opener = urllib2.build_opener( urllib2.HTTPHandler)
 	request = urllib2.Request( url, data=content)
 	request.add_header( 'Content-Type', 'application/json')
@@ -54,34 +57,58 @@ def get( address, path):
 		f = urllib2.urlopen( url)
 		s = f.read()
 		return s
+	except urllib2.URLError:
+		_logger.debug( '    %s: %s', url, sys.exc_info()[1])
+		return None
 	except:
-		_logger.warning( 'Cannot GET data to %s: %s', url, sys.exc_info()[0])
+		_logger.warning( 'Cannot GET data from %s: %s %s', url, sys.exc_info()[0], sys.exc_info()[1])
 		_logger.warning( '%s', ''.join( traceback.format_tb( sys.exc_info()[2])))
 		return None
 
 
 def info( address):
-	str_info = get( address, "/info")
+	str_info = get( address, "/state")
 	if str_info is None:
 		return None
 	return json.loads( str_info)
 
 def pull( address):
-	s = get( address, "/pull")
+	s = get( address, "/copy")
 	if s is None:
 		return None
 	return json.loads( s)
 
 
 def normalize_addr( addr):
-	"""Converts the address to the IP:port format.
+	"""Converts and checks that the address is in host;port format.
 
 	Args:
 		addr: address to convert
 	Returns:
-		Converted address or None if invalid.
+		Converted typle containing IP address and port number.
+		None otherwise.
 	"""
-	return addr # FIXME: Better checking :-)
+	# Split addresss into components
+	pair = addr.split( ':')
+	if len(pair) > 2:
+		return None, None
+
+	# Convert host part
+	host = socket.gethostbyname( pair[0])
+
+	# Convert port part
+	if len(pair) < 2:
+		port = DEFAULT_PORT
+	else:
+		port = None
+		try:
+			port = int( pair[1])
+		except ValueError:
+			pass
+		if port is None or port < 1 or port > 65535:
+			return (None, None)
+
+	return (host, port)
 
 def now():
 	"""Returns current time."""

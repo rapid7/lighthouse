@@ -89,7 +89,7 @@ class Monitor(threading.Thread):
 			self._reachable = False
 			return
 		try:
-			self._version = data.DataVersion( sequence=info[ 'sequence'], checksum=info[ 'checksum'])
+			self._version = data.DataVersion.from_dict( info[ 'version'])
 		except (TypeError, KeyError):
 			_logger.error( '%s Invalid pulled data', self.address)
 			return
@@ -119,7 +119,7 @@ class Monitor(threading.Thread):
 		# Wait for push signal or timeout
 		do_push = self.force_push.wait( PING_PERIOD)
 		# Wait little bit more to avoid update storms
-		time.sleep( random.random( REACTION_VAR))
+		time.sleep( random.random() *REACTION_VAR)
 		# Perform the action
 		if do_push:
 			self._push()
@@ -150,7 +150,7 @@ class Monitor(threading.Thread):
 		return {
 			'address': self.address,
 			'version': self._version.to_dict(),
-			'reachable': self.reachable,
+			'reachable': self._reachable,
 			'last-reachable': helpers.dump_time( self._last_reachable),
 			'last-push': helpers.dump_time( self._last_push),
 		}

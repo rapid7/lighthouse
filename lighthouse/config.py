@@ -110,6 +110,7 @@ def load_configuration():
 
 	# Do not read file if there is no data path defined
 	if _data_dir is None:
+		_logger.info( 'No data.d defined, starting plain')
 		return None
 
 	dir_glob = _data_dir +'/' +DATA_DIR_GLOB

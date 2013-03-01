@@ -69,8 +69,8 @@ Command line options
 --data.d=
    Path where data store snapshots are and will be stored.
 
---port=
-   The port we are listening on.
+--bind=
+   The IP:port tuple to bind.
 
 --seends=
    A comma-separated list of other Lighthouse instances. The list does not have
