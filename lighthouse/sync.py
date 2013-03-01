@@ -4,8 +4,8 @@ import logging
 
 # Local imports
 import inlock
-import helpers
 import monitor
+import helpers
 
 
 logger = logging.getLogger(__name__)
@@ -29,26 +29,20 @@ class ClusterState:
 		inlock.add_lock( self)
 
 	@inlock.synchronized
-	def add_instance(self, xaddr):
+	def add_instance(self, addr):
 		"""Adds a new instance to the cluster.
 
 		New asynchronous monitor is created.
 
 		Args:
-			xaddr: address in the form of ip:port or host:port
-		Returns:
-			True is successful, False otherwise
+			addr: address in the form of ip:port or host:port
 		"""
-		# Normalize the address
-		addr = helpers.normalize_addr( xaddr)
-		if not addr:
-			return False
 		# Check that we are not trying to add ourselves
 		if addr == self.me:
-			return True
+			return
 		# Check that the address is not in our list already
 		if any( [addr == x.address for x in self.instance_monitors]):
-			return True
+			return
 
 		# Create a new state for the instance
 		# Instantiate and start a monitor
@@ -74,6 +68,14 @@ class ClusterState:
 		"""
 		for state in cstate:
 			self.add_instance( state['address'])
+
+	def update_state_json(self, content):
+		try:
+			cstate = helpers.load_json( content)[ 'cluster']
+			self.update_state( cstate)
+		except (ValueError, KeyError):
+			return False
+		return True
 
 # State of the whole cluster
 cluster_state = None
