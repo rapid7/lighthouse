@@ -4,16 +4,16 @@ public class FileNotFoundLighthouseException extends LighthouseException {
 	private final String mUrl;
 
 	private static String calcMsg(final String url) {
-		return "Not Found: " + url;
+		return "Not found: " + url;
+	}
+
+	public FileNotFoundLighthouseException(final String url, java.io.FileNotFoundException caused) {
+		super(calcMsg(url), caused);
+		mUrl = url;
 	}
 
 	public FileNotFoundLighthouseException(final String url) {
 		super(calcMsg(url));
-		mUrl = url;
-	}
-
-	public FileNotFoundLighthouseException(final String url, final java.io.FileNotFoundException caused) {
-		super(calcMsg(url), caused);
 		mUrl = url;
 	}
 

@@ -23,10 +23,9 @@ import org.json.simple.JSONObject;
 public class LighthouseClient {
 	static final Charset HTTP_CHARSET = Charset.forName("utf-8");
 
-	static final String PATH_INFO = "info";
+	static final String PATH_STATE = "state";
 	static final String PATH_DATA = "data";
-	static final String PATH_PULL = "pull";
-	static final String PATH_PUSH = "push";
+	static final String PATH_COPY = "copy";
 	static final String PATH_LOCK = "lock";
 	static final String PATH_UPDATE = "update";
 
@@ -65,6 +64,9 @@ public class LighthouseClient {
 		if (rc == 404) {
 			throw new FileNotFoundLighthouseException(url);
 		}
+		if (rc == 409) {
+			throw new ResponseConflictLighthouseException(url);
+		}
 		if (rc != 200 && rc != 201) {
 			throw new BadStatusCodeLighthouseException(rc);
 		}
@@ -89,17 +91,18 @@ public class LighthouseClient {
 			throw new LighthouseException(e);
 		} finally {
 			try {
-				if (reader != null) {
+				if (null != reader) {
 					reader.close();
 				}
 			} catch (java.io.IOException e) {
 			}
-			if (conn != null) {
+			if (null != conn) {
 				conn.disconnect();
 			}
 		}
 	}
 
+	// FIXME: Set content-type
 	private int req_put(final String path, final Object obj, final ReqType reqType) throws LighthouseException {
 		final String u = url(path);
 		HttpURLConnection conn = null;
@@ -128,12 +131,12 @@ public class LighthouseClient {
 			throw new LighthouseException(e);
 		} finally {
 			try {
-				if (writer != null) {
+				if (null != writer) {
 					writer.close();
 				}
 			} catch (java.io.IOException e) {
 			}
-			if (conn != null) {
+			if (null != conn) {
 				conn.disconnect();
 			}
 		}
@@ -157,25 +160,19 @@ public class LighthouseClient {
 			throw new LighthouseException(e);
 		} finally {
 			try {
-				if (writer != null) {
+				if (null != writer) {
 					writer.close();
 				}
 			} catch (java.io.IOException e) {
 			}
-			if (conn != null) {
+			if (null != conn) {
 				conn.disconnect();
 			}
 		}
 	}
 
-	private static Info mapToInfo(final Map map) {
-		return new Info(((Number)map.get("version")).intValue(), (String)map.get("checksum"));
-	}
-
-	public Info info() throws LighthouseException {
-		final Object ans = req_get(PATH_INFO, ReqType.REQ_JSON);
-		Map map = (Map)ans;
-		return mapToInfo(map);
+	public State state() throws LighthouseException {
+		return State.fromMap((Map)req_get(PATH_STATE, ReqType.REQ_JSON));
 	}
 
 	public Object data(final String tail) throws LighthouseException {
@@ -213,18 +210,14 @@ public class LighthouseClient {
 		req_delete(path);
 	}
 
-	public Pull pull() throws LighthouseException {
-		final Object ans = req_get(PATH_PULL, ReqType.REQ_JSON);
+	public Copy copy() throws LighthouseException {
+		final Object ans = req_get(PATH_COPY, ReqType.REQ_JSON);
 		final Map map = (Map)ans;
-		return new Pull(mapToInfo(map), (Map)map.get("data"));
+		return Copy.fromMap(map);
 	}
 
-	public void push(final Pull x) throws LighthouseException {
-		final JSONObject obj = new JSONObject();
-                obj.put("version", x.getInfo().getVersion());
-                obj.put("checksum", x.getInfo().getChecksum());
-                obj.put("data", x.getData());
-		final int code = req_put(PATH_PUSH, obj, ReqType.REQ_JSON);
+	public void copy(final Copy x) throws LighthouseException {
+		final int code = req_put(PATH_COPY, Copy.toMap(x), ReqType.REQ_JSON);
 	}
 
 	public void acquireLock(final String lockKey) throws LighthouseException {

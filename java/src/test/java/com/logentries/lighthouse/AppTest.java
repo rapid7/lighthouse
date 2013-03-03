@@ -37,14 +37,14 @@ public class AppTest
      */
     public void testApp()
     {
-	int version = 123;
+	int sequence = 123;
         int valueXXX = 0;
 
-	LighthouseClient lc = new LighthouseClient("127.0.0.1", 8001);
+	LighthouseClient lc = new LighthouseClient("172.16.11.103", 8001);
 	/* */
 	try {
-		System.err.println("info>> " + lc.info());
-		version = lc.info().getVersion();
+		System.err.println("info>> " + lc.state());
+		sequence = lc.state().getVersion().getSequence();
 	} catch (LighthouseException e) {
 		e.printStackTrace();
 	}
@@ -68,7 +68,7 @@ public class AppTest
 	}
 	/* */
 	try {
-		System.err.println("pull>> " + lc.pull());
+		System.err.println("copy>> " + lc.copy());
 	} catch (LighthouseException e) {
 		e.printStackTrace();
 	}
@@ -81,7 +81,7 @@ public class AppTest
 		data2.put("12", new Integer(12));
 		data2.put("3.14", new Float(3.14));
 		data.put("x", data2);
-		lc.push(new Pull(new Info(version + 1, "ADFCDADF"), data));
+		lc.copy(new Copy(new Version(sequence + 1, "ADFCDADF"), data));
 	} catch (LighthouseException e) {
 		e.printStackTrace();
 	}
