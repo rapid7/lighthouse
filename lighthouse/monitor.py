@@ -70,10 +70,10 @@ class Monitor(threading.Thread):
 
 		# Push data
 		_logger.info( '%s Push', self.address)
-		result = helpers.push( self.address, xdata.dump_json({
+		result = helpers.push( self.address, helpers.dump_json({
 				'sequence': xdata.version.sequence,
 				'checksum': xdata.version.checksum,
-				'data': xdata
+				'data': xdata.data
 			}))
 
 		# Mark time when we tried to push new data

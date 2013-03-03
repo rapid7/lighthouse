@@ -103,7 +103,7 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 		elif d( path, U_DATA): self.put_data( blocks[1:])
 		elif d( path, U_UPDATE): self.put_update( blocks[1:])
 		elif e( path, U_COPY): self.put_copy()
-		elif e( path, U_LOCK): self.put_lock()
+		elif d( path, U_LOCK): self.put_lock( blocks[1:])
 		elif e( path, U_STATE): self.put_state()
 		else: self._response_not_found()
 
@@ -114,7 +114,7 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 		if path == U_ROOT: self._response_forbidden()
 		elif d( path, U_DATA): self.delete_data( blocks[1:])
 		elif d( path, U_UPDATE): self.delete_update( blocks[1:])
-		elif e( path, U_LOCK): self.delete_lock()
+		elif d( path, U_LOCK): self.delete_lock( blocks[1:])
 		else: self._response_not_found()
 	
 	def do_CONNECT(self):
@@ -133,11 +133,16 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 		else:
 			self._response_not_found( RESPONSE_NOT_LOCKED)
 
-	def put_lock(self):
+	def put_lock(self, blocks):
 		""" Put lock """
 		code = self._read_input()
 		if not code:
-			# Missing lock code, delete the lock
+			# Missing lock code, try to delete the lock
+
+			# First check that current lock is specified as a part of the path
+			if self.check_update( blocks):
+				return
+
 			l = data.release_lock()
 			if l == data.LCK_OK:
 				# Let other instances know
@@ -157,8 +162,12 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 			else:
 				self._response_forbidden( RESPONSE_LOCKED)
 
-	def delete_lock(self):
+	def delete_lock(self, blocks):
 		# Abort the update
+
+		if self.check_update( blocks):
+			return
+
 		if data.abort_update():
 			self._response_plain( RESPONSE_RELEASED)
 		else:

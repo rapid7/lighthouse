@@ -80,7 +80,7 @@ def pull( address):
 
 
 def normalize_addr( addr):
-	"""Converts and checks that the address is in host;port format.
+	"""Converts and checks that the address is in host:port format.
 
 	Args:
 		addr: address to convert
