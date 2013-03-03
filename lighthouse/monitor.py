@@ -138,7 +138,6 @@ class Monitor(threading.Thread):
 			except:
 				_logger.error( 'Unhandled exception %s', sys.exc_info()[0])
 				_logger.error( '%s', ''.join( traceback.format_tb( sys.exc_info()[2])))
-				return False
 
 	@inlock.synchronized
 	def _touch_last_push(self):
