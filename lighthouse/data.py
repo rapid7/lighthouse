@@ -380,7 +380,7 @@ def push_data( copy):
 	try:
 		copy_ver = DataVersion.from_dict( copy[ 'version'])
 		copy_data = copy[ 'data']
-	except KeyError:
+	except KeyError as e:
 		_logger.error( 'Invalid or missing version in copy')
 		return False
 

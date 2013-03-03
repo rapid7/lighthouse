@@ -51,7 +51,7 @@ class Monitor(threading.Thread):
 		# Address of the instance as a string of the form ip:port or
 		# host:port. It is immutable.
 		self.address = address
-			
+
 		# Last version of the instance data as reported (instance of DataVersion or None)
 		self._version = data.DataVersion()
 		# If last ping successed
@@ -71,11 +71,14 @@ class Monitor(threading.Thread):
 		# Push data
 		_logger.info( '%s Push', self.address)
 		result = helpers.push( self.address, helpers.dump_json({
-				'sequence': xdata.version.sequence,
-				'checksum': xdata.version.checksum,
-				'data': xdata.data
+				'version': {
+					'sequence': xdata.version.sequence,
+					'checksum': xdata.version.checksum,
+				},
+				'data': xdata.data,
 			}))
 
+		_logger.info('push result: %s', result)
 		# Mark time when we tried to push new data
 		if result:
 			self._touch_last_push()
@@ -106,7 +109,6 @@ class Monitor(threading.Thread):
 		content = helpers.pull( self.address)
 		if content is None:
 			return False
-
 		# Check in new data
 		if data.push_data( content):
 			config.save_configuration()
@@ -118,6 +120,7 @@ class Monitor(threading.Thread):
 		"""
 		# Wait for push signal or timeout
 		do_push = self.force_push.wait( PING_PERIOD)
+		self.force_push.clear()
 		# Wait little bit more to avoid update storms
 		time.sleep( random.random() *REACTION_VAR)
 		# Perform the action
