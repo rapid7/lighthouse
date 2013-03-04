@@ -176,35 +176,35 @@ public class LighthouseClient {
 	}
 
 	public Object data(final String tail) throws LighthouseException {
-		final Object ans = req_get(PATH_DATA + tail, ReqType.REQ_JSON);
+		final Object ans = req_get(PATH_DATA + '/' + tail, ReqType.REQ_JSON);
 		return ans;
 	}
 
 	private String updatePath(final String tail) throws LighthouseException {
 		if (null == mLockKey) {
-			throw new LighthouseException("Lock not acquired");
+			throw new LockNotAcquiredLighthouseException();
 		}
 		return String.format("%s/%s/%s", PATH_UPDATE, mLockKey, tail);
 	}
 
 	public void update(final String tail, final Object data) throws LighthouseException {
 		if (null == mLockKey) {
-			throw new LighthouseException("Lock not acquired");
+			throw new LockNotAcquiredLighthouseException();
 		}
 		final String path = updatePath(tail);
-		final int code = req_put(path, data, ReqType.REQ_JSON);
+		req_put(path, data, ReqType.REQ_JSON);
 	}
 
 	public Object update(final String tail) throws LighthouseException {
 		if (null == mLockKey) {
-			throw new LighthouseException("Lock not acquired");
+			throw new LockNotAcquiredLighthouseException();
 		}
 		return req_get(updatePath(tail), ReqType.REQ_JSON);
 	}
 
 	public void deleteX(final String tail) throws LighthouseException {
 		if (null == mLockKey) {
-			throw new LighthouseException("Lock not acquired");
+			throw new LockNotAcquiredLighthouseException();
 		}
 		final String path = updatePath(tail);
 		req_delete(path);
@@ -224,6 +224,9 @@ public class LighthouseClient {
 		if (null == lockKey) {
 			throw new IllegalArgumentException("lockKey cannot be null");
 		}
+		if (null != mLockKey) {
+			throw new LockAlreadyAcquiredLighthouseException();
+		}
 		try {
 			req_put(PATH_LOCK, lockKey, ReqType.REQ_PLAIN);
 		} catch (AccessDeniedLighthouseException e) {
@@ -234,7 +237,7 @@ public class LighthouseClient {
 
 	public void refreshLock() throws LighthouseException {
 		if (null == mLockKey) {
-			throw new LighthouseException("Lock not acquired");
+			throw new LockNotAcquiredLighthouseException();
 		}
 		acquireLock(mLockKey);
 	}
@@ -243,12 +246,16 @@ public class LighthouseClient {
 		return mLockKey;
 	}
 
+	private String lockPath() {
+		return String.format("%s/%s", PATH_LOCK, mLockKey);
+	}
+
 	public void commit() throws LighthouseException {
 		if (null == mLockKey) {
-			throw new LighthouseException("Lock not acquired");
+			throw new LockNotAcquiredLighthouseException();
 		}
 		try {
-			final int code = req_put(PATH_LOCK, "", ReqType.REQ_PLAIN);
+			req_put(lockPath(), "", ReqType.REQ_PLAIN);
 		} finally {
 			mLockKey = null;
 		}
@@ -256,8 +263,12 @@ public class LighthouseClient {
 
 	public void rollback() throws LighthouseException {
 		if (null == mLockKey) {
-			throw new LighthouseException("Lock not acquired");
+			throw new LockNotAcquiredLighthouseException();
 		}
-		req_delete(PATH_LOCK);
+		try {
+			req_delete(lockPath());
+		} finally {
+			mLockKey = null;
+		}
 	}
 }
