@@ -96,7 +96,6 @@ class Monitor(threading.Thread):
 		except (TypeError, KeyError):
 			_logger.error( '%s Invalid pulled data', self.address)
 			return
-		self._reachable = True
 		self._touch_last_reachable()
 
 		# Check that the other instance has newer configuration
@@ -145,6 +144,7 @@ class Monitor(threading.Thread):
 
 	@inlock.synchronized
 	def _touch_last_reachable(self):
+		self._reachable = True
 		self._last_reachable = helpers.now()
 
 	@inlock.synchronized
