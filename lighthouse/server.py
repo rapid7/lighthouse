@@ -40,6 +40,7 @@ RESPONSE_FORBIDDEN = 'Forbidden'
 RESPONSE_NOT_LOCKED = 'Not Locked'
 RESPONSE_NOT_FOUND = 'Not Found'
 RESPONSE_NOT_LOCKED = 'Not Locked'
+RESPONSE_NO_LOC = 'No Lock Acquired'
 RESPONSE_NO_CONTENT = 'No Content'
 RESPONSE_LOCKED = 'Locked'
 RESPONSE_CONFLICT = 'Conflicting Request'
@@ -140,7 +141,7 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 			# Missing lock code, try to delete the lock
 
 			# First check that current lock is specified as a part of the path
-			if self.check_update( blocks):
+			if self.check_update( blocks, True):
 				return
 
 			l = data.release_lock()
@@ -164,8 +165,7 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 
 	def delete_lock(self, blocks):
 		# Abort the update
-
-		if self.check_update( blocks):
+		if self.check_update( blocks, True):
 			return
 
 		if data.abort_update():
@@ -204,19 +204,22 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 	# Updates /update/
 	#
 
-	def check_update(self, blocks):
+	def check_update(self, blocks, not_found=False):
 		""" Checks that update is allowed - the lock is acquired and
 		specified in URL. """
+		resp = self._response_forbidden
+		if not_found:
+			resp = self._response_not_found
 		# Ignore update if the lock is not acquired
 		if len(blocks) == 0:
 			return self._response_not_found()
 		# Update does not exist if there is no lock
 		lock_code = data.get_lock_code()
 		if lock_code is None:
-			return self._response_forbidden( RESPONSE_NOT_LOCKED)
+			return resp( RESPONSE_NOT_LOCKED)
 		# Check that the lock is correct
 		if blocks[0] != lock_code:
-			return self._response_forbidden( RESPONSE_INV_LOCK_CODE)
+			return resp( RESPONSE_INV_LOCK_CODE)
 		return False
 
 	def get_update(self, blocks):

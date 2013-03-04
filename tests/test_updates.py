@@ -164,8 +164,8 @@ get( '/update/'+LOCKCODE+'/', 200, '{"c":"","d":3,"e":{"q":"w"}}')
 
 block( 'Release lock')
 
-put( '/lock/', '', 200)  # The lock is released and data updated are active now
-put( '/lock/', '', 404)  # Released again, the lock does not exist
+put( '/lock/'+LOCKCODE, '', 200)  # The lock is released and data updated are active now
+put( '/lock/'+LOCKCODE, '', 404)  # Released again, the lock does not exist
 
 #
 block( 'Initialized, lock released')
@@ -193,7 +193,7 @@ get( '/data/e/q', 200, '"w"')
 put( '/lock/', LOCKCODE, 200)                 # Acquire lock
 get( '/data/e/q', 200, '"w"')                 # It is in data/
 get( '/update/'+LOCKCODE+'/e/q', 200, '"w"')  # It is in update/
-put( '/lock/', '', 200)                       # Release lock
+put( '/lock/'+LOCKCODE, '', 200)               # Release lock
 get( '/data/e/q', 200, '"w"')                 # It is still in data
 get( '/update/'+LOCKCODE+'/e/q', 403)         # Make sure update/ is removed
 
@@ -205,7 +205,7 @@ put( '/lock/', LOCKCODE, 200)    # Acquire lock
 get( '/data/e/q', 200, '"w"')    # Make sure data got copied
 get( '/update/'+LOCKCODE+'/e/q', 200, '"w"')  # Make sure data got copied
 delete( '/update/'+LOCKCODE+'/e/q', 204)      # Delete one field
-delete( '/lock/', 200)           # Abort the transaction
+delete( '/lock/'+LOCKCODE, 200)           # Abort the transaction
 get( '/data/e/q', 200, '"w"')    # Make sure data is still there
 
 #
