@@ -108,7 +108,21 @@ def _is_newer_path( limit, file_path):
 	return limit < t
 
 
-def load_configuration( load_limit=None):
+def rm_old_files ( limit=None):
+	global _data_dir
+
+	if limit is None:
+		return
+
+	dir_glob = _data_dir +'/' +DATA_DIR_GLOB
+	files = glob.glob( dir_glob)
+	for filename in sorted( files, reverse=True):
+		if not _is_newer_path( limit, filename):
+			_logger.info( 'Removing config file: [%s]', filename)
+#			os.unlink( filename)
+
+
+def load_configuration( limit=None):
 	"""Loads data from the newest file.
 
 	Returns:
@@ -126,7 +140,7 @@ def load_configuration( load_limit=None):
 
 	files = glob.glob( dir_glob)
 	for filename in sorted( files, reverse=True):
-		if not _is_newer_path(load_limit, filename):
+		if not _is_newer_path( limit, filename):
 			_logger.warn( 'Configuration too old, switching to Service Unavailable state')
 			data.set_unavailable()
 			return True
