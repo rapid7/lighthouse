@@ -14,6 +14,7 @@ import logging
 import sync
 import helpers
 import data
+import datetime, time
 
 _logger = logging.getLogger(__name__)
 
@@ -100,7 +101,14 @@ def _load_from_file( filename):
 	return r
 
 
-def load_configuration():
+def _is_newer_path( limit, file_path):
+	if limit is None:
+		return True
+	t = time.strptime(os.path.basename(file_path), DATA_DIR_STRFTIME)
+	return limit < t
+
+
+def load_configuration( load_limit=None):
 	"""Loads data from the newest file.
 
 	Returns:
@@ -118,9 +126,13 @@ def load_configuration():
 
 	files = glob.glob( dir_glob)
 	for filename in sorted( files, reverse=True):
+		if not _is_newer_path(load_limit, filename):
+			_logger.warn( 'Configuration too old, switching to Service Unavailable state')
+			data.set_unavailable()
+			return True
 		if _load_from_file( filename):
 			return True
 
-	_logger.warn('No configuration found')
+	_logger.warn( 'No configuration found')
 	return False
 

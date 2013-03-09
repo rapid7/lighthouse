@@ -50,6 +50,7 @@ RESPONSE_RELEASED = 'Released'
 RESPONSE_BAD_REQUEST = 'Bad Request'
 RESPONSE_INV_LOCK_CODE = 'Invalid Lock Code'
 RESPONSE_CREATED = 'Created'
+RESPONSE_SERVICE_UNAVAILABLE = 'Service Unavailable'
 
 # URLs
 
@@ -88,35 +89,44 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 		""" Processes the GET commands. """
 		path, blocks = self._get_path()
 		self._parse_params()
-		if path == U_ROOT: self._response_plain( RESPONSE_ABOUT)
-		elif d( path, U_DATA): self.get_data( blocks[1:])
-		elif d( path, U_UPDATE): self.get_update( blocks[1:])
-		elif e( path, U_LOCK): self.get_lock()
-		elif d( path, U_COPY): self.get_copy()
-		elif e( path, U_STATE): self.get_state()
-		else: self._response_not_found()
+		try:
+			if path == U_ROOT: self._response_plain( RESPONSE_ABOUT)
+			elif d( path, U_DATA): self.get_data( blocks[1:])
+			elif d( path, U_UPDATE): self.get_update( blocks[1:])
+			elif e( path, U_LOCK): self.get_lock()
+			elif d( path, U_COPY): self.get_copy()
+			elif e( path, U_STATE): self.get_state()
+			else: self._response_not_found()
+		except data.UnavailableDataError:
+			self._response_service_unavailable()
 
 	def do_PUT(self):
 		""" Updates internal data with JSON provided. """
 		path, blocks = self._get_path()
 
-		if path == U_ROOT: self._response_forbidden()
-		elif d( path, U_DATA): self.put_data( blocks[1:])
-		elif d( path, U_UPDATE): self.put_update( blocks[1:])
-		elif e( path, U_COPY): self.put_copy()
-		elif d( path, U_LOCK): self.put_lock( blocks[1:])
-		elif e( path, U_STATE): self.put_state()
-		else: self._response_not_found()
+		try:
+			if path == U_ROOT: self._response_forbidden()
+			elif d( path, U_DATA): self.put_data( blocks[1:])
+			elif d( path, U_UPDATE): self.put_update( blocks[1:])
+			elif e( path, U_COPY): self.put_copy()
+			elif d( path, U_LOCK): self.put_lock( blocks[1:])
+			elif e( path, U_STATE): self.put_state()
+			else: self._response_not_found()
+		except data.UnavailableDataError:
+			self._response_service_unavailable()
 
 	def do_DELETE(self):
 		""" Deletes the data given. """
 		path, blocks = self._get_path()
 
-		if path == U_ROOT: self._response_forbidden()
-		elif d( path, U_DATA): self.delete_data( blocks[1:])
-		elif d( path, U_UPDATE): self.delete_update( blocks[1:])
-		elif d( path, U_LOCK): self.delete_lock( blocks[1:])
-		else: self._response_not_found()
+		try:
+			if path == U_ROOT: self._response_forbidden()
+			elif d( path, U_DATA): self.delete_data( blocks[1:])
+			elif d( path, U_UPDATE): self.delete_update( blocks[1:])
+			elif d( path, U_LOCK): self.delete_lock( blocks[1:])
+			else: self._response_not_found()
+		except data.UnavailableDataError:
+			self._response_service_unavailable()
 	
 	def do_CONNECT(self):
 		# TODO
@@ -348,6 +358,9 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 
 	def _response_not_found( self, response = RESPONSE_NOT_FOUND):
 		return self._response( 404, 'text_plain', response)
+
+	def _response_service_unavailable( self, response = RESPONSE_SERVICE_UNAVAILABLE):
+		return self._response( 503, 'text_plain', response)
 
 	def _get_path(self):
 		url = urlparse.urlparse( self.path)
