@@ -60,11 +60,13 @@ def print_usage( version_only=False):
 if __name__ == '__main__':
 	logging.basicConfig(level=logging.DEBUG, format=LOG_FORMAT, datefmt="%Y-%m-%d %H:%M:%S")
 	try:
-		optlist, args = getopt.gnu_getopt( sys.argv[1:], '', 'help version data.d= seeds= bind='.split())
+		optlist, args = getopt.gnu_getopt( sys.argv[1:], '', 'help version data.d= seeds= bind= load-limit= rm-limit='.split())
 	except getopt.GetoptError, err:
 		die( 'Parameter error: ' +str( err))
 	bind = 'localhost:8001'
 	seeds = []
+	load_limit = None
+	rm_limit = None
 	for name, value in optlist:
 		if name == "--help":
 			print_usage()
@@ -76,6 +78,10 @@ if __name__ == '__main__':
 			bind = value
 		if name == "--seeds":
 			seeds = value.split( ',')
+		if name == "--load-limit":
+			load_limit = helpers.load_time( value)
+		if name == "--rm-limit":
+			rm_limit = helpers.load_time( value)
 
 	host, port = helpers.normalize_addr( bind)
 	if host is None:
@@ -88,7 +94,9 @@ if __name__ == '__main__':
 		r = sync.cluster_state.add_instance( seed)
 
 	# Load old configuration
-	config.load_configuration()
+	config.load_configuration( limit=load_limit)
+	# Remove old files
+	config.rm_old_files( limit=rm_limit)
 	# Run the server
 	server.run( ( host, port))
 

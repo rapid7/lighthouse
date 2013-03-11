@@ -50,10 +50,6 @@ _lock = threading.RLock() # reentrant lock, read/write lock would be more handy,
                           # but python std lib doesn't support such locks
 
 
-
-
-
-
 class DataVersion:
 	"""
 	The state we keep for each server. It consists of a number and a
@@ -229,7 +225,18 @@ _data = Data()
 # Update structure
 _update = Data()
 
+UNAVAILABLE_DATA = Data(new_data='/nothing/works', sequence=-1)
 
+
+class UnavailableDataError(Exception):
+	pass
+
+
+def _check_avail():
+	global _data, _lock
+	with _lock:
+		if _data is UNAVAILABLE_DATA:
+			raise UnavailableDataError()
 
 
 #
@@ -239,6 +246,8 @@ _update = Data()
 def get_data( path):
 	global _data, _lock
 	with _lock:
+		_check_avail()
+
 		return _data.get( path)
 
 def get_update( path):
@@ -291,6 +300,7 @@ def get_lock_code():
 				return None
 			return _lock_code
 
+
 def try_acquire_lock( code):
 	"""Tries to acquire a new lock with the code given.
 
@@ -306,6 +316,8 @@ def try_acquire_lock( code):
 	global _lock
 
 	with _lock:
+		_check_avail()
+
 		# Get current lock
 		current_lock = get_lock_code()
 		# If the lock is already acquired and it's not the same, fail
@@ -403,6 +415,8 @@ def get_copy( get_data=True):
 	global _data, _lock
 
 	with _lock:
+		_check_avail()
+
 		response = {}
 		# Collect data version
 		response[ 'version'] = _data.version.to_dict()
@@ -420,3 +434,7 @@ def cur_data():
 	global _data
 	return _data
 
+def set_unavailable():
+	global _lock, _data
+	with _lock:
+		_data = UNAVAILABLE_DATA
