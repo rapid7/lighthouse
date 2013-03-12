@@ -5,6 +5,7 @@ For method synchronization simple decorate the method with @synchronized.
 Note that the constructor must be decorated as well to ensure that the
 instance lock is created before its methods are called concurrently.
 
+Viliam Holub
 
 """
 
@@ -22,18 +23,6 @@ def add_lock( instance):
 	lock = threading.RLock()
 	instance._lock = lock
 	return lock
-
-
-def monitor( method):
-	"""A decorator to add instance lock. """
-
-	@functools.wraps( method)
-	def _wrap( self, *args, **kwargs):
-		# Create instance lock
-		add_lock( self)
-		return method( self, *args, **kwargs)
-
-	return _wrap
 
 
 def synchronized( method):
