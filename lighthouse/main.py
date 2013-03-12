@@ -41,6 +41,9 @@ EXIT_ERR = 2  # Error
 # Log entry format
 LOG_FORMAT = "%(asctime)s.%(msecs)d %(name)-10s %(levelname)-8s %(message)s"
 
+# Default limits for remove of conf files and for delayed startup
+DEF_LOAD_LIMIT = '-7 days'
+DEF_RM_LIMIT = '-7 days'
 
 def die(cause, exit_code=EXIT_ERR):
 	""" Print the text given and exits. """
@@ -60,13 +63,13 @@ def print_usage( version_only=False):
 if __name__ == '__main__':
 	logging.basicConfig(level=logging.DEBUG, format=LOG_FORMAT, datefmt="%Y-%m-%d %H:%M:%S")
 	try:
-		optlist, args = getopt.gnu_getopt( sys.argv[1:], '', 'help version data.d= seeds= bind= load-limit= rm-limit='.split())
+		optlist, args = getopt.gnu_getopt( sys.argv[1:], '', 'help version data.d= seeds= bind= load-limit= rm-limit= bootstrap'.split())
 	except getopt.GetoptError, err:
 		die( 'Parameter error: ' +str( err))
 	bind = 'localhost:8001'
 	seeds = []
-	load_limit = None
-	rm_limit = None
+	load_limit = DEF_LOAD_LIMIT
+	rm_limit = DEF_RM_LIMIT
 	for name, value in optlist:
 		if name == "--help":
 			print_usage()
@@ -79,9 +82,11 @@ if __name__ == '__main__':
 		if name == "--seeds":
 			seeds = value.split( ',')
 		if name == "--load-limit":
-			load_limit = helpers.load_time( value)
+			load_limit = value
+		if name == "--bootstrap":
+			load_limit = None
 		if name == "--rm-limit":
-			rm_limit = helpers.load_time( value)
+			rm_limit = value
 
 	host, port = helpers.normalize_addr( bind)
 	if host is None:
@@ -94,9 +99,9 @@ if __name__ == '__main__':
 		r = sync.cluster_state.add_instance( seed)
 
 	# Load old configuration
-	config.load_configuration( limit=load_limit)
+	config.load_configuration( str_limit=load_limit)
 	# Remove old files
-	config.rm_old_files( limit=rm_limit)
+	config.set_rm_limit( rm_limit=rm_limit)
 	# Run the server
 	server.run( ( host, port))
 

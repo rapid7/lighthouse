@@ -9,12 +9,12 @@ Configuration consists of the whole data store copy and cluster state.
 import os
 import glob
 import logging
+import datetime
 
 # Local imports
 import sync
 import helpers
 import data
-import datetime, time
 
 _logger = logging.getLogger(__name__)
 
@@ -25,6 +25,9 @@ DATA_DIR_STRFTIME = '%Y%m%dT%H%M%S.%f.json'
 # Path where we store configuration snapshots. None if undefined.
 _data_dir = None
 
+# string describing datetime limit for removing of old configuration files
+#  any format that can be [arsed by load_time
+_rm_limit = None
 
 def _create_data_dir( data_dir):
 	"""Creates the directory safely.
@@ -54,6 +57,12 @@ def set_data_dir(data_dir):
 
 	return True
 
+
+def set_rm_limit(rm_limit):
+	"""
+	"""
+	global _rm_limit
+	_rm_limit = rm_limit
 
 
 def save_configuration():
@@ -104,15 +113,16 @@ def _load_from_file( filename):
 def _is_newer_path( limit, file_path):
 	if limit is None:
 		return True
-	t = time.strptime(os.path.basename(file_path), DATA_DIR_STRFTIME)
+	t = datetime.datetime.strptime(os.path.basename(file_path), DATA_DIR_STRFTIME)
 	return limit < t
 
 
-def rm_old_files ( limit=None):
+def rm_old_files ( str_limit=None):
 	global _data_dir
 
+	limit = helpers.load_time( str_limit)
 	if limit is None:
-		return
+		return None
 
 	dir_glob = _data_dir +'/' +DATA_DIR_GLOB
 	files = glob.glob( dir_glob)
@@ -122,7 +132,7 @@ def rm_old_files ( limit=None):
 #			os.unlink( filename)
 
 
-def load_configuration( limit=None):
+def load_configuration( str_limit=None):
 	"""Loads data from the newest file.
 
 	Returns:
@@ -130,6 +140,9 @@ def load_configuration( limit=None):
 	"""
 	global _data_dir
 
+	rm_old_files()
+
+	limit = helpers.load_time( str_limit)
 	# Do not read file if there is no data path defined
 	if _data_dir is None:
 		_logger.info( 'No data.d defined, starting plain')

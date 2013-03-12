@@ -4,7 +4,8 @@
 import _json as json
 import urllib2
 import logging
-import datetime, time
+import re
+import datetime
 import sys
 import socket
 import traceback
@@ -141,5 +142,10 @@ def dump_time( time):
 def load_time( s):
 	if s is None:
 		return None
+
+	m = re.match(r'^\s*([+-]?\d+)\s*days?\s*$', s)
+	if m:
+		return datetime.datetime.now() - datetime.timedelta(days=int(m.group(1)))
+
 	return time.strptime( s, "%Y%m%dT%H%M%S")
 
