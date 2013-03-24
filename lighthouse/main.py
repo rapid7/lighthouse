@@ -31,6 +31,9 @@ USAGE = """
 --data.d    path to configuration files
 --seeds=    other instances in the cluster, comma-separated
 --bind=     IP[:port] where to bind the server
+--load-limit=
+--rm-limit=
+--bootstrap=
 """
 
 # Exit codes

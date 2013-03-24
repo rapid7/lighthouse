@@ -401,7 +401,7 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 			if sent is not None:
 				content = json.loads( sent)
 		except ValueError:
-			self.log_message( 'JSON: /invalid')
+			self.log_message( 'JSON: /invalid, sent=[%s]' % sent)
 			return None
 			
 		self.log_message( 'JSON: %s', content)
