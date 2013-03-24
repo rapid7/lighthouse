@@ -11,13 +11,15 @@ import java.util.Date;
 import java.util.Map;
 import org.json.simple.JSONValue;
 import org.json.simple.JSONObject;
+import java.lang.IllegalArgumentException;
 
 /**
  * Logentries client for Lighthouse server.
  * 
  * VERSION: 1.0.0
  * 
- * @author Daniel Fiala
+ * @author: Daniel Fiala
+ * @email: danfiala@ucw.cz
  * 
  */
 public class LighthouseClient {
@@ -28,6 +30,8 @@ public class LighthouseClient {
 	static final String PATH_COPY = "copy";
 	static final String PATH_LOCK = "lock";
 	static final String PATH_UPDATE = "update";
+	
+	static final int DEFAULT_PORT = 8001;
 
 	private String mHost;
 	private int mPort;
@@ -39,9 +43,36 @@ public class LighthouseClient {
 		REQ_JSON,
 	};
 
-	public LighthouseClient(final String host, final int port) {
+	private void setHostPort(final String host, final int port) {
 		mHost = host;
 		mPort = port;
+	}
+	
+	private int parsePort(final String s) {
+		try {
+			final int port = Integer.parseInt(s);
+			if (port < 0) {
+				throw new java.lang.IllegalArgumentException("Port number cannot be negative");
+			}
+			return port;
+		} catch (java.lang.NumberFormatException e) {
+			throw new java.lang.IllegalArgumentException("Invalid number as a port number");
+		}
+	}
+	
+	public LighthouseClient(final String hostPort) {
+		final int index = hostPort.indexOf(':');
+		if (-1 == index) {
+			setHostPort(hostPort, DEFAULT_PORT);
+		} else {
+			final String host = hostPort.substring(0, index);
+			final int port = parsePort(hostPort.substring(index + 1));
+			setHostPort(host, port);
+		}
+	}
+	
+	public LighthouseClient(final String host, final int port) {
+		setHostPort(host, port);
 	}
 
 	private String url(final String path) {
@@ -78,7 +109,7 @@ public class LighthouseClient {
                 InputStreamReader reader = null;
 		try {
 			conn = (HttpURLConnection)new URL(u).openConnection();
-			int len = conn.getContentLength();
+			final int len = conn.getContentLength();
 			reader = new InputStreamReader(conn.getInputStream(), HTTP_CHARSET);
 			return reqType == ReqType.REQ_PLAIN ? readAll(reader) : JSONValue.parseWithException(reader);
 		} catch (java.net.MalformedURLException e) {
@@ -175,8 +206,18 @@ public class LighthouseClient {
 		return State.fromMap((Map)req_get(PATH_STATE, ReqType.REQ_JSON));
 	}
 
+	static String stripSlash(final String path) {
+		if (0 == path.length()) {
+			return path;
+		}
+		if ('/' == path.charAt(0)) {
+			return path.substring(1);
+		}
+		return path;
+	}
+	
 	public Object data(final String tail) throws LighthouseException {
-		final Object ans = req_get(PATH_DATA + '/' + tail, ReqType.REQ_JSON);
+		final Object ans = req_get(PATH_DATA + '/' + stripSlash(tail), ReqType.REQ_JSON);
 		return ans;
 	}
 
@@ -184,7 +225,7 @@ public class LighthouseClient {
 		if (null == mLockKey) {
 			throw new LockNotAcquiredLighthouseException();
 		}
-		return String.format("%s/%s/%s", PATH_UPDATE, mLockKey, tail);
+		return String.format("%s/%s/%s", PATH_UPDATE, mLockKey, stripSlash(tail));
 	}
 
 	public void update(final String tail, final Object data) throws LighthouseException {
@@ -212,12 +253,11 @@ public class LighthouseClient {
 
 	public Copy copy() throws LighthouseException {
 		final Object ans = req_get(PATH_COPY, ReqType.REQ_JSON);
-		final Map map = (Map)ans;
-		return Copy.fromMap(map);
+		return Copy.fromMap((Map)ans);
 	}
 
 	public void copy(final Copy x) throws LighthouseException {
-		final int code = req_put(PATH_COPY, Copy.toMap(x), ReqType.REQ_JSON);
+		req_put(PATH_COPY, Copy.toMap(x), ReqType.REQ_JSON);
 	}
 
 	public void acquireLock(final String lockKey) throws LighthouseException {
