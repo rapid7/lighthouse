@@ -41,6 +41,14 @@ public class Version {
 		return mChecksum;
 	}
 
+	public boolean equals(final Object o) {
+		if (!(o instanceof Version)) {
+			return false;
+		}
+		final Version version = (Version)o;
+		return getSequence() == version.getSequence() && getChecksum().equals(version.getChecksum());
+	}
+	
 	public String toString() {
 		return String.format("{sequence:%d; checksum:%s}", getSequence(), getChecksum());
 	}
