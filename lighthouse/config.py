@@ -148,7 +148,7 @@ def load_configuration( str_limit=None):
 		_logger.info( 'No data.d defined, starting plain')
 		return None
 
-	dir_glob = _data_dir +'/' +DATA_DIR_GLOB
+	dir_glob = _data_dir +'/' + DATA_DIR_GLOB
 	_logger.debug( 'Data dir glob: %s', dir_glob)
 
 	files = glob.glob( dir_glob)

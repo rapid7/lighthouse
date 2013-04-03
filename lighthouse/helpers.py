@@ -145,7 +145,7 @@ def load_time( s):
 
 	m = re.match(r'^\s*([+-]?\d+)\s*days?\s*$', s)
 	if m:
-		return datetime.datetime.now() - datetime.timedelta(days=int(m.group(1)))
+		return datetime.datetime.now() + datetime.timedelta(days=int(m.group(1)))
 
 	return time.strptime( s, "%Y%m%dT%H%M%S")
 
