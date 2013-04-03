@@ -147,6 +147,7 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 	def put_lock(self, blocks):
 		""" Put lock """
 		code = self._read_input()
+		logging.info("log code: [%s]" % code);
 		if not code:
 			# Missing lock code, try to delete the lock
 
