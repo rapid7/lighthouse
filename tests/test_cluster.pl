@@ -8,7 +8,7 @@ use POSIX;
 
 use WWW::Curl::Easy;
 
-use Test::Simple tests => 5;
+use Test::Simple tests => 30;
 
 sub chk {
     my $res = shift;
@@ -36,7 +36,7 @@ sub get_curl {
     my $resp = sub {
         my $ret_code = $curl->perform;
 
-        my $ret = 0 == $ret_code ? {
+        return 0 == $ret_code ? {
                 code => $curl->getinfo(CURLINFO_HTTP_CODE),
                 content => $response_body ? $response_body : '',
                 body =>  $response_body ? (split /\r?\n\r?\n/,  $response_body)[1] : '',
@@ -74,9 +74,9 @@ my $req = {
 
 sub tmp_dir {
 	(my $tail = shift) =~ s{^/+}{};
-	my $file_path = "/tmp/$$/$tail";
+	my $file_path = "/tmp/lighthouse-tests/$$/$tail";
 	(my $path = $file_path) =~ s{/[^/]*$}{};
-	mkpath($path) or die "Cannot create directory: \`$path'";
+	-d $path or mkpath($path) or die "Cannot create directory: \`$path'";
 	return $file_path;
 }
 
@@ -113,12 +113,13 @@ sub lighthouse {
 		close $fh;
 	    exec { 'lighthouse/main.py' } ('main.py',  @args);
 	}
-	return $pid;
+	return { pid => $pid, log => $params{'out-file'} };
 }
 
 sub main {
-	my $log_file = tmp_dir('001.log');
-	my $lighthouse_pid = lighthouse('out-file' => $log_file, 'seeds' => '127.0.0.1:11001');
+    my @pids = ();
+
+	push @pids, lighthouse('out-file' => tmp_dir('001.log'), 'seeds' => '127.0.0.1:11001', 'data.d' => tmp_dir('8001/'));
     sleep(6);
 
     ok $req->{get}->("http://127.0.0.1:8001/data")->{body} eq '{}';
@@ -126,9 +127,47 @@ sub main {
 
     ok chk $req->{put}->("http://127.0.0.1:8001/lock", "$$"), code => 200;
     ok chk $req->{put}->("http://127.0.0.1:8001/update/$$", '{ "file": "/var/log/apache2/access.log", "size": 1024, "XXX": 12345, "providers": { "alpha": ["192.168.1.1", "192.168.1.2"], "beta": ["192.168.2.1", "192.168.2.2"], "gamma": ["192.168.3.1", "192.168.3.2"] } }'), code => 201;
+    ok chk $req->{put}->("http://127.0.0.1:8001/update/bad-key/somewher", 'xxx'), code => 403;
+    ok chk $req->{put}->("http://127.0.0.1:8001/update/$$/not/found", '{ "file": "mm" }'), code => 404;
     ok chk $req->{put}->("http://127.0.0.1:8001/lock/$$", ''), code => 200;
 
-    kill_and_wait($lighthouse_pid);
+    ok chk $req->{put}->("http://127.0.0.1:8001/lock", "$$-201"), code => 200;
+    ok chk $req->{put}->("http://127.0.0.1:8001/update/$$-201/XXX", '{ "A0": { "B1": { "C2": { "D3": "Hello World" } } } }'), code => 201;
+    ok chk $req->{get}->("http://127.0.0.1:8001/update/$$-201/XXX/A0/B1/C2/D3"), body => '"Hello World"';
+    ok chk $req->{put}->("http://127.0.0.1:8001/lock/$$-201", ''), code => 200;
+    ok chk $req->{get}->("http://127.0.0.1:8001/data/XXX/A0/B1/C2/D3"), body => '"Hello World"';
+
+    ok chk $req->{put}->("http://127.0.0.1:8001/lock", "$$-321"), code => 200;
+    ok chk $req->{put}->("http://127.0.0.1:8001/update/$$-321/XXX/A0/B1/C2/D3", '"Nothing Works"'), code => 201;
+    ok chk $req->{get}->("http://127.0.0.1:8001/update/$$-321/XXX/A0/B1/C2/D3"), body => '"Nothing Works"';
+    print STDERR "Waiting for expiration of the key...\n";
+    sleep 30;
+    ok chk $req->{get}->("http://127.0.0.1:8001/update/$$-321/XXX/A0/B1/C2/D3"), code => 403;
+
+    ok do {
+        my $copy = $req->{get}->("http://127.0.0.1:8001/copy")->{body};
+        kill_and_wait( (shift @pids)->{pid} );
+        push @pids, lighthouse('out-file' => tmp_dir('002.log'), 'data.d' => tmp_dir('8001/'));
+        sleep 10;
+        $copy eq $req->{get}->("http://127.0.0.1:8001/copy")->{body};
+    };
+
+    ok 1;
+    ok 1;
+    ok 1;
+    ok 1;
+
+    ok 1;
+    ok 1;
+    ok 1;
+    ok 1;
+    ok 1;
+    ok 1;
+    ok 1;
+    ok 1;
+    ok 1;
+
+    kill_and_wait( (shift @pids)->{pid} ) ;
 }
 
 main;
