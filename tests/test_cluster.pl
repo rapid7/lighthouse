@@ -8,7 +8,7 @@ use POSIX;
 
 use WWW::Curl::Easy;
 
-use Test::Simple tests => 30;
+use Test::Simple tests => 47;
 
 sub chk {
     my $res = shift;
@@ -22,6 +22,14 @@ sub chk {
     return 1;
 }
 
+sub wx {
+    my $code = shift;
+    for my $i(0..20) {
+        sleep 1 if $i > 0;
+        return 1 if $code->();
+    }
+    return undef;
+}
 
 
 sub get_curl {
@@ -120,10 +128,8 @@ sub main {
     my @pids = ();
 
 	push @pids, lighthouse('out-file' => tmp_dir('001.log'), 'seeds' => '127.0.0.1:11001', 'data.d' => tmp_dir('8001/'));
-    sleep(6);
 
-    ok $req->{get}->("http://127.0.0.1:8001/data")->{body} eq '{}';
-    ok chk $req->{get}->("http://127.0.0.1:8001/data"), body => '{}';
+    ok wx sub { chk $req->{get}->("http://127.0.0.1:8001/data"), body => '{}' };
 
     ok chk $req->{put}->("http://127.0.0.1:8001/lock", "$$"), code => 200;
     ok chk $req->{put}->("http://127.0.0.1:8001/update/$$", '{ "file": "/var/log/apache2/access.log", "size": 1024, "XXX": 12345, "providers": { "alpha": ["192.168.1.1", "192.168.1.2"], "beta": ["192.168.2.1", "192.168.2.2"], "gamma": ["192.168.3.1", "192.168.3.2"] } }'), code => 201;
@@ -140,6 +146,7 @@ sub main {
     ok chk $req->{put}->("http://127.0.0.1:8001/lock", "$$-321"), code => 200;
     ok chk $req->{put}->("http://127.0.0.1:8001/update/$$-321/XXX/A0/B1/C2/D3", '"Nothing Works"'), code => 201;
     ok chk $req->{get}->("http://127.0.0.1:8001/update/$$-321/XXX/A0/B1/C2/D3"), body => '"Nothing Works"';
+
     print STDERR "Waiting for expiration of the key...\n";
     sleep 30;
     ok chk $req->{get}->("http://127.0.0.1:8001/update/$$-321/XXX/A0/B1/C2/D3"), code => 403;
@@ -148,26 +155,67 @@ sub main {
         my $copy = $req->{get}->("http://127.0.0.1:8001/copy")->{body};
         kill_and_wait( (shift @pids)->{pid} );
         push @pids, lighthouse('out-file' => tmp_dir('002.log'), 'data.d' => tmp_dir('8001/'));
-        sleep 10;
-        $copy eq $req->{get}->("http://127.0.0.1:8001/copy")->{body};
+    
+        wx sub { $copy eq $req->{get}->("http://127.0.0.1:8001/copy")->{body} };
     };
 
-    ok 1;
-    ok 1;
-    ok 1;
-    ok 1;
+    push @pids, lighthouse('out-file' => tmp_dir('011.log'), 'bind' => '127.0.0.1:11001', 'seeds' => '127.0.0.1:8001', 'data.d' => tmp_dir('11001/'));
+    ok wx sub { chk $req->{get}->("http://127.0.0.1:11001/state"), 'code' => 200 };
+    ok do {
+        my $copy_8001 = $req->{get}->("http://127.0.0.1:8001/copy")->{body};
+        my $copy_11001 = $req->{get}->("http://127.0.0.1:11001/copy")->{body};
+        $copy_8001 eq $copy_11001;
+    };
 
-    ok 1;
-    ok 1;
-    ok 1;
-    ok 1;
-    ok 1;
-    ok 1;
-    ok 1;
-    ok 1;
-    ok 1;
+    ok wx sub { $req->{get}->("http://127.0.0.1:8001/state")->{body} =~ m{ "address": "127.0.0.1:11001"} };
+    ok wx sub { $req->{get}->("http://127.0.0.1:11001/state")->{body} =~ m{ "address": "127.0.0.1:8001"} };
 
-    kill_and_wait( (shift @pids)->{pid} ) ;
+    ok chk $req->{put}->("http://127.0.0.1:11001/lock", "$$"), code => 200;
+    ok chk $req->{put}->("http://127.0.0.1:11001/update/$$/XXX", '3.14'), code => 201;
+    ok chk $req->{put}->("http://127.0.0.1:11001/lock/$$", ''), code => 200;
+
+    ok wx sub { chk $req->{get}->("http://127.0.0.1:8001/data/XXX"), body => '3.14' };
+
+    ok do {
+        my $copy = $req->{get}->("http://127.0.0.1:11001/copy")->{body};
+        kill_and_wait( (pop @pids)->{pid} );
+        push @pids, lighthouse('out-file' => tmp_dir('012.log'), 'bind' => '127.0.0.1:11001', 'data.d' => tmp_dir('11001/'));
+        wx sub { $copy eq $req->{get}->("http://127.0.0.1:11001/copy")->{body} };
+    };
+
+    push @pids, lighthouse('out-file' => tmp_dir('021.log'), 'bind' => '127.0.0.1:12001', 'seeds' => '127.0.0.1:8001', 'data.d' => tmp_dir('12001/'));
+    ok wx sub { $req->{get}->("http://127.0.0.1:8001/state")->{body} =~ m{ "address": "127.0.0.1:12001"} };
+    ok wx sub { $req->{get}->("http://127.0.0.1:11001/state")->{body} =~ m{ "address": "127.0.0.1:12001"} };
+    ok wx sub { $req->{get}->("http://127.0.0.1:12001/state")->{body} =~ m{ "address": "127.0.0.1:8001"} };
+    ok wx sub { $req->{get}->("http://127.0.0.1:12001/state")->{body} =~ m{ "address": "127.0.0.1:11001"} };
+print STDERR "8001: #" . $req->{get}->("http://127.0.0.1:8001/state")->{body} . "#\n";
+print STDERR "11001: #" . $req->{get}->("http://127.0.0.1:11001/state")->{body} . "#\n";
+print STDERR "12001: #" . $req->{get}->("http://127.0.0.1:12001/state")->{body} . "#\n";
+
+    ok chk $req->{put}->("http://127.0.0.1:8001/lock", "$$"), code => 200;
+    ok chk $req->{put}->("http://127.0.0.1:8001/update/$$/XXX", '3218001'), code => 201;
+    ok chk $req->{put}->("http://127.0.0.1:8001/lock/$$", ''), code => 200;
+    ok wx sub { chk $req->{get}->("http://127.0.0.1:8001/data/XXX"), body => '3218001' };
+    ok wx sub { chk $req->{get}->("http://127.0.0.1:11001/data/XXX"), body => '3218001' };
+    ok wx sub { chk $req->{get}->("http://127.0.0.1:12001/data/XXX"), body => '3218001' };
+
+    ok chk $req->{put}->("http://127.0.0.1:11001/lock", "$$"), code => 200;
+    ok chk $req->{put}->("http://127.0.0.1:11001/update/$$/XXX", '32111001'), code => 201;
+    ok chk $req->{put}->("http://127.0.0.1:11001/lock/$$", ''), code => 200;
+    ok wx sub { chk $req->{get}->("http://127.0.0.1:8001/data/XXX"), body => '32111001' };
+    ok wx sub { chk $req->{get}->("http://127.0.0.1:11001/data/XXX"), body => '32111001' };
+    ok wx sub { chk $req->{get}->("http://127.0.0.1:12001/data/XXX"), body => '32111001' };
+
+    ok chk $req->{put}->("http://127.0.0.1:12001/lock", "$$"), code => 200;
+    ok chk $req->{put}->("http://127.0.0.1:12001/update/$$/XXX", '32112001'), code => 201;
+    ok chk $req->{put}->("http://127.0.0.1:12001/lock/$$", ''), code => 200;
+    ok wx sub { chk $req->{get}->("http://127.0.0.1:8001/data/XXX"), body => '32112001' };
+    ok wx sub { chk $req->{get}->("http://127.0.0.1:11001/data/XXX"), body => '32112001' };
+    ok wx sub { chk $req->{get}->("http://127.0.0.1:12001/data/XXX"), body => '32112001' };
+
+    while (@pids) {
+        kill_and_wait( (shift @pids)->{pid} ) ;
+    }
 }
 
 main;
