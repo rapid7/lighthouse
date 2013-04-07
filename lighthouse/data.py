@@ -426,8 +426,6 @@ def get_copy( get_data=True):
 	global _data, _lock
 
 	with _lock:
-		_check_avail()
-
 		response = {}
 		# Collect data version
 		response[ 'version'] = _data.version.to_dict()
