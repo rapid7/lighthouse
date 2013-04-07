@@ -219,12 +219,11 @@ class Data:
 		return True
 
 
-# Pointer to unavailable data
-_unavailable_data = None
-
 # Data structure
 _data = Data()
-set_unavailable()
+
+# This points to _data when we are in Service Unavailable State
+_unavailable_data = _data
 
 # Update structure
 _update = Data()
@@ -237,10 +236,11 @@ class UnavailableDataError( Exception):
 _bootstrap_limit = None
 
 def set_bootstrap_limit( bootstrap_limit):
+	global _bootstrap_limit
 	_bootstrap_limit = helpers.load_time( bootstrap_limit)
 
 def _check_avail():
-	global _data, _lock, _bootstrap_limit
+	global _data, _unavailable_data, _lock, _bootstrap_limit
 
 	with _lock:
 		if _data is _unavailable_data:
@@ -444,6 +444,7 @@ def cur_data():
 	"""
 	global _data
 	return _data
+
 
 def set_unavailable():
 	global _lock, _data, _unavailable_data, _logger

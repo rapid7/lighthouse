@@ -4,7 +4,6 @@ import logging
 
 # Local imports
 import inlock
-import monitor
 import helpers
 
 

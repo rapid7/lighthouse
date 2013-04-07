@@ -16,6 +16,7 @@ import logging
 import server
 import sync
 import config
+import data
 import helpers
 
 from __init__ import __version__

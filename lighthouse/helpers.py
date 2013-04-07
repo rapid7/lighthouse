@@ -156,5 +156,5 @@ def load_time( s):
 	if m:
 		return datetime.datetime.now() + datetime.timedelta( seconds=int(m.group(1)))
 
-	return time.strptime( s, "%Y%m%dT%H%M%S")
+	return datetime.time.strptime( s, "%Y%m%dT%H%M%S")
 
