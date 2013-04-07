@@ -33,7 +33,8 @@ USAGE = """
 --bind=     IP[:port] where to bind the server
 --load-limit=
 --rm-limit=
---bootstrap=
+--bootstrap
+--bootstrap-limit=
 """
 
 # Exit codes
@@ -47,6 +48,7 @@ LOG_FORMAT = "%(asctime)s.%(msecs)d %(name)-10s %(levelname)-8s %(message)s"
 # Default limits for remove of conf files and for delayed startup
 DEF_LOAD_LIMIT = '-7 days'
 DEF_RM_LIMIT = '-7 days'
+DEF_BOOTSTRAP_LIMIT = '+2 minutes'
 
 def die(cause, exit_code=EXIT_ERR):
 	""" Print the text given and exits. """
@@ -66,13 +68,14 @@ def print_usage( version_only=False):
 if __name__ == '__main__':
 	logging.basicConfig(level=logging.DEBUG, format=LOG_FORMAT, datefmt="%Y-%m-%d %H:%M:%S")
 	try:
-		optlist, args = getopt.gnu_getopt( sys.argv[1:], '', 'help version data.d= seeds= bind= load-limit= rm-limit= bootstrap'.split())
+		optlist, args = getopt.gnu_getopt( sys.argv[1:], '', 'help version data.d= seeds= bind= load-limit= rm-limit= bootstrap bootstrap-limit='.split())
 	except getopt.GetoptError, err:
 		die( 'Parameter error: ' +str( err))
 	bind = 'localhost:8001'
 	seeds = []
 	load_limit = DEF_LOAD_LIMIT
 	rm_limit = DEF_RM_LIMIT
+	bootstrap_limit = DEF_BOOTSTRAP_LIMIT
 	for name, value in optlist:
 		if name == "--help":
 			print_usage()
@@ -88,6 +91,8 @@ if __name__ == '__main__':
 			load_limit = value
 		if name == "--bootstrap":
 			load_limit = None
+		if name == "--bootstrap-limit":
+			bootstrap_limit = value
 		if name == "--rm-limit":
 			rm_limit = value
 
@@ -102,9 +107,12 @@ if __name__ == '__main__':
 		r = sync.cluster_state.add_instance( seed)
 
 	# Load old configuration
-	config.load_configuration( str_limit=load_limit)
+	data.set_bootstrap_limit( bootstrap_limit=bootstrap_limit)
+	config.load_configuration( load_limit=load_limit)
+
 	# Remove old files
 	config.set_rm_limit( rm_limit=rm_limit)
+	config.rm_old_files()
 	# Run the server
 	server.run( ( host, port))
 

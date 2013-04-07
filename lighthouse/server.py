@@ -37,7 +37,7 @@ Lighthouse %s
 
 RESPONSE_ACCEPTED = 'Accepted'
 RESPONSE_FORBIDDEN = 'Forbidden'
-RESPONSE_NOT_LOCKED = 'Not Locked'
+ORESPONSE_NOT_LOCKED = 'Not Locked'
 RESPONSE_NOT_FOUND = 'Not Found'
 RESPONSE_NOT_LOCKED = 'Not Locked'
 RESPONSE_NO_LOC = 'No Lock Acquired'

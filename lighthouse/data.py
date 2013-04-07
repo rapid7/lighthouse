@@ -40,7 +40,6 @@ _lock_code = None
 # Timestamp of client's lock acquire
 _lock_timestamp = 0
 
-
 # Threading lock object(s)
 # FIXME: Locking can be more optimised, eg. different locks for 
 #        different kinds of data.
@@ -220,23 +219,35 @@ class Data:
 		return True
 
 
+# Pointer to unavailable data
+_unavailable_data = None
+
 # Data structure
 _data = Data()
+set_unavailable()
+
 # Update structure
 _update = Data()
 
-UNAVAILABLE_DATA = Data(new_data='/nothing/works', sequence=-1)
-
-
-class UnavailableDataError(Exception):
+class UnavailableDataError( Exception):
 	pass
 
 
+# Limit time for returning of useable data
+_bootstrap_limit = None
+
+def set_bootstrap_limit( bootstrap_limit):
+	_bootstrap_limit = helpers.load_time( bootstrap_limit)
+
 def _check_avail():
-	global _data, _lock
+	global _data, _lock, _bootstrap_limit
+
 	with _lock:
-		if _data is UNAVAILABLE_DATA:
-			raise UnavailableDataError()
+		if _data is _unavailable_data:
+			if _bootstrap_limit <= helpers.now():
+				_unavailable_data = None
+			else:
+				raise UnavailableDataError()
 
 
 #
@@ -364,7 +375,8 @@ def release_lock():
 			return LCK_CONCURRENT
 
 		# Do the update of internal structure
-		_data = new_data
+		if _data.version.checksum != new_data.version.checksum:
+			_data = new_data
 		_update = Data()
 		_lock_timestamp = 0
 
@@ -395,7 +407,6 @@ def push_data( copy):
 	except KeyError:
 		_logger.error( 'Invalid or missing version in copy')
 		return False
-
 
 	with _lock:
 		# Do not accept configuration if it's older
@@ -435,6 +446,7 @@ def cur_data():
 	return _data
 
 def set_unavailable():
-	global _lock, _data
+	global _lock, _data, _unavailable_data, _logger
 	with _lock:
-		_data = UNAVAILABLE_DATA
+		_unavailable_data = _data
+	_logger.info( "Switched to Service Unavailable State, data will be available again: %s", _bootstrap_limit)

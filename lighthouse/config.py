@@ -58,11 +58,27 @@ def set_data_dir(data_dir):
 	return True
 
 
-def set_rm_limit(rm_limit):
+def set_rm_limit( rm_limit):
 	"""
 	"""
 	global _rm_limit
 	_rm_limit = rm_limit
+
+
+def rm_old_files():
+	global _data_dir, _rm_limit
+
+	limit = helpers.load_time( _rm_limit)
+	if limit is None:
+		return None
+
+	dir_glob = _data_dir +'/' +DATA_DIR_GLOB
+	files = glob.glob( dir_glob)
+	for filename in sorted( files, reverse=True):
+		if not _is_newer_path( limit, filename):
+			_logger.info( 'Removing config file: [%s]', filename)
+			os.unlink( filename)
+
 
 
 def save_configuration():
@@ -71,6 +87,8 @@ def save_configuration():
 	# Don't write if there's no destination
 	if _data_dir is None:
 		return False
+
+	rm_old_files()
 
 	snapshot = {}
 	# Get a raw copy of all data
@@ -117,22 +135,7 @@ def _is_newer_path( limit, file_path):
 	return limit < t
 
 
-def rm_old_files ( str_limit=None):
-	global _data_dir
-
-	limit = helpers.load_time( str_limit)
-	if limit is None:
-		return None
-
-	dir_glob = _data_dir +'/' +DATA_DIR_GLOB
-	files = glob.glob( dir_glob)
-	for filename in sorted( files, reverse=True):
-		if not _is_newer_path( limit, filename):
-			_logger.info( 'Removing config file: [%s]', filename)
-#			os.unlink( filename)
-
-
-def load_configuration( str_limit=None):
+def load_configuration( load_limit=None):
 	"""Loads data from the newest file.
 
 	Returns:
@@ -140,9 +143,7 @@ def load_configuration( str_limit=None):
 	"""
 	global _data_dir
 
-	rm_old_files()
-
-	limit = helpers.load_time( str_limit)
+	limit = helpers.load_time( load_limit)
 	# Do not read file if there is no data path defined
 	if _data_dir is None:
 		_logger.info( 'No data.d defined, starting plain')
@@ -153,13 +154,12 @@ def load_configuration( str_limit=None):
 
 	files = glob.glob( dir_glob)
 	for filename in sorted( files, reverse=True):
-		if not _is_newer_path( limit, filename):
-			_logger.warn( 'Configuration too old, switching to Service Unavailable state')
-			data.set_unavailable()
-			return True
 		if _load_from_file( filename):
+			if not _is_newer_path( limit, filename):
+				_logger.warn( 'Configuration too old, switching to Service Unavailable state')
+				data.set_unavailable()
 			return True
 
-	_logger.warn( 'No configuration found')
+	_logger.warn( 'No configuration found, switching to Service Unavailable State')
+	data.set_unavailable()
 	return False
-

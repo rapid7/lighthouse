@@ -29,7 +29,7 @@ class ClusterState:
 		inlock.add_lock( self)
 
 	@inlock.synchronized
-	def add_instance(self, addr):
+	def add_instance( self, addr):
 		"""Adds a new instance to the cluster.
 
 		New asynchronous monitor is created.
