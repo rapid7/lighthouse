@@ -320,7 +320,6 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 			self._response_bad_request()
 
 
-
 	#
 	# Helpers
 	#
