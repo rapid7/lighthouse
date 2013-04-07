@@ -307,6 +307,7 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 		""" Returns version information and cluster state. """
 		response = data.get_copy( get_data=False)
 		response[ 'cluster'] = sync.cluster_state.get_state()
+		response[ 'Me'] = sync.cluster_state.me
 		return self._response_json( response)
 
 	def put_state(self):
