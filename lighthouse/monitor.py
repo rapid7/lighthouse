@@ -8,6 +8,7 @@ import time
 import traceback
 
 # Local imports
+import sync
 import helpers
 import inlock
 import data
@@ -86,6 +87,10 @@ class Monitor(threading.Thread):
 	def _pull(self):
 		# Ping the instance and get its version
 		_logger.info( '%s Ping', self.address)
+
+#		_logger.info( "dump_json: %s", sync.cluster_state.get_state() + [{'address': sync.cluster_state.me}])
+		# Try to push your state to the other side
+		helpers.push_state( self.address, helpers.dump_json( sync.cluster_state.get_state() + [{'address': sync.cluster_state.me}]))
 
 		info = helpers.info( self.address)
 		if not info:

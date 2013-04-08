@@ -52,6 +52,33 @@ def push( address, content):
 	return True
 
 
+def push_state( address, content):
+	"""Pushes the content given via HTTP PUT to update the remote
+	instance.
+
+	It does not fail on any errors.
+
+	Args:
+		address: destination
+		content: distionary to send as JSON
+	Retruns:
+		True if successful
+	"""
+	url = _url( address, '/state')
+	opener = urllib2.build_opener( urllib2.HTTPHandler)
+	request = urllib2.Request( url, data=content)
+	request.add_header( 'Content-Type', 'application/json')
+	request.get_method = lambda: 'PUT'
+	try:
+		url = opener.open( request)
+	except:
+		_logger.warning( 'Cannot PUT data to %s: %s', url, sys.exc_info()[0])
+		_logger.warning( '%s', ''.join( traceback.format_tb( sys.exc_info()[2])))
+		return False
+		
+	return True
+
+
 def get( address, path):
 	url = _url( address, path)
 	try:

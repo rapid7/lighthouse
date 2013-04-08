@@ -160,6 +160,7 @@ def load_configuration( load_limit=None):
 				data.set_unavailable()
 			return True
 
-	_logger.warn( 'No configuration found, switching to Service Unavailable State')
-	data.set_unavailable()
+	if load_limit:
+		_logger.warn( 'No configuration found, switching to Service Unavailable State')
+		data.set_unavailable()
 	return False

@@ -315,7 +315,7 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 		# Get content
 		content = self._read_input_json()
 
-		if sync.cluster_state.update_state_json( content):
+		if sync.cluster_state.update_state( content):
 			self._response_plain( RESPONSE_ACCEPTED)
 		else:
 			self._response_bad_request()

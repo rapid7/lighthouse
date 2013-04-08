@@ -111,7 +111,7 @@ sub lighthouse {
     	@_,
     );
 
-    my @args = map { exists $params{$_} and "--$_=$params{$_}" } @keys;
+    my @args = map { exists $params{$_} and (defined($params{$_}) ? "--$_=$params{$_}" : "--$_") } @keys;
 
 	defined(my $pid = fork()) or die "Cannot fork";
 	if (!$pid) {
@@ -127,7 +127,7 @@ sub lighthouse {
 sub main {
     my @pids = ();
 
-	push @pids, lighthouse('out-file' => tmp_dir('001.log'), 'seeds' => '127.0.0.1:11001', 'data.d' => tmp_dir('8001/'));
+	push @pids, lighthouse('out-file' => tmp_dir('001.log'), 'seeds' => '127.0.0.1:11001', 'data.d' => tmp_dir('8001/'), 'bootstrap' => undef);
 
     ok wx sub { chk $req->{get}->("http://127.0.0.1:8001/data"), body => '{}' };
 

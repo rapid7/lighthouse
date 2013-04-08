@@ -223,7 +223,7 @@ class Data:
 _data = Data()
 
 # This points to _data when we are in Service Unavailable State
-_unavailable_data = _data
+_unavailable_data = None
 
 # Update structure
 _update = Data()
