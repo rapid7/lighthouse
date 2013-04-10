@@ -1,6 +1,8 @@
 package com.logentries.lighthouse;
 
 public class AccessDeniedLighthouseException extends LighthouseException {
+	private static final long serialVersionUID = -5354321793219341363L;
+
 	private final String mUrl;
 
 	private static String calcMsg(final String url) {

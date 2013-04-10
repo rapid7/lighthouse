@@ -14,12 +14,13 @@ public class State {
 	}
 
 	// FIXME: Add parser exceptions
-	public static State fromMap(final Map map) {
-		return new State(Version.fromMap((Map)map.get(KEY_VERSION)));
+	@SuppressWarnings("unchecked")
+	public static State fromMap(final Map<String, Object> map) {
+		return new State(Version.fromMap((Map<String, Object>)map.get(KEY_VERSION)));
 	}
 
-	public static Map toMap(final State state) {
-		final Map map = new LinkedHashMap();
+	public static Map<String, Object> toMap(final State state) {
+		final Map<String, Object> map = new LinkedHashMap<String, Object>();
 		map.put(KEY_VERSION, state.getVersion());
 		return map;
 	}

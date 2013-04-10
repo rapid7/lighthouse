@@ -8,25 +8,27 @@ public class Copy {
 	private static final String KEY_DATA = "data";
 
 	private Version mVersion;
-	private Map mData;
+	private Map<String, Object> mData;
 
-	public Copy(final Version version, final Map data) {
+	public Copy(final Version version, final Map<String, Object> data) {
 		mVersion = version;
 		mData = data;
 	}
 
 	// FIXME: Handle parsing problems
-	static public Copy fromMap(final Map map) {
+	static public Copy fromMap(final Map<String, Object> map) {
 		if (null == map) {
 			return null;
 		}
-		Version version = Version.fromMap((Map)map.get(KEY_VERSION));
-		Map data = (Map)map.get(KEY_DATA);
+		@SuppressWarnings("unchecked")
+		Version version = Version.fromMap((Map<String, Object>)map.get(KEY_VERSION));
+		@SuppressWarnings("unchecked")
+		Map<String, Object> data = (Map<String, Object>)map.get(KEY_DATA);
 		return new Copy(version, data);
 	}
 
-	static public Map toMap(final Copy pull) {
-		Map map = new LinkedHashMap();
+	static public Map<String, Object> toMap(final Copy pull) {
+		Map<String, Object> map = new LinkedHashMap<String, Object>();
 		map.put(KEY_VERSION, Version.toMap(pull.getVersion()));
 		map.put(KEY_DATA, pull.getData());
 		return map;
@@ -36,7 +38,7 @@ public class Copy {
 		return mVersion;
 	}
 
-	public Map getData() {
+	public Map<String, Object> getData() {
 		return mData;
 	}
 

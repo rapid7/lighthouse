@@ -1,6 +1,8 @@
 package com.logentries.lighthouse;
 
 public class LighthouseException extends java.lang.Exception {
+	private static final long serialVersionUID = 582283416564017238L;
+
 	public LighthouseException() {
 	}
 

@@ -1,16 +1,12 @@
 package com.logentries.lighthouse;
 
-import java.net.URLConnection;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.Charset;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
-import java.util.Date;
 import java.util.Map;
 import org.json.simple.JSONValue;
-import org.json.simple.JSONObject;
 import java.lang.IllegalArgumentException;
 
 /**
@@ -109,6 +105,8 @@ public class LighthouseClient {
                 InputStreamReader reader = null;
 		try {
 			conn = (HttpURLConnection)new URL(u).openConnection();
+			// It is necessary to ask for length otherwise http would not be performed
+			@SuppressWarnings("unused")
 			final int len = conn.getContentLength();
 			reader = new InputStreamReader(conn.getInputStream(), HTTP_CHARSET);
 			return reqType == ReqType.REQ_PLAIN ? readAll(reader) : JSONValue.parseWithException(reader);
@@ -202,8 +200,9 @@ public class LighthouseClient {
 		}
 	}
 
+	@SuppressWarnings("unchecked")
 	public State state() throws LighthouseException {
-		return State.fromMap((Map)req_get(PATH_STATE, ReqType.REQ_JSON));
+		return State.fromMap((Map<String, Object>)req_get(PATH_STATE, ReqType.REQ_JSON));
 	}
 
 	static String stripSlash(final String path) {
@@ -251,9 +250,10 @@ public class LighthouseClient {
 		req_delete(path);
 	}
 
+	@SuppressWarnings("unchecked")
 	public Copy copy() throws LighthouseException {
 		final Object ans = req_get(PATH_COPY, ReqType.REQ_JSON);
-		return Copy.fromMap((Map)ans);
+		return Copy.fromMap((Map<String, Object>)ans);
 	}
 
 	public void copy(final Copy x) throws LighthouseException {

@@ -1,6 +1,8 @@
 package com.logentries.lighthouse;
 
 public class FileNotFoundLighthouseException extends LighthouseException {
+	private static final long serialVersionUID = -5270777408629966288L;
+
 	private final String mUrl;
 
 	private static String calcMsg(final String url) {

@@ -19,15 +19,15 @@ public class Version {
 	}
 
 	// FIXME: handle parsing exceptions
-	public static Version fromMap(final Map map) {
+	public static Version fromMap(final Map<String, Object> map) {
 		if (null == map) {
 			return null;
 		}
 		return new Version(((Number)map.get(KEY_SEQUENCE)).intValue(), (String)map.get(KEY_CHECKSUM));
 	}
 
-	public static Map toMap(final Version version) {
-		Map map = new LinkedHashMap();
+	public static Map<String, Object> toMap(final Version version) {
+		Map<String, Object> map = new LinkedHashMap<String, Object>();
 		map.put(KEY_SEQUENCE, version.getSequence());
 		map.put(KEY_CHECKSUM, version.getChecksum());
 		return map;
