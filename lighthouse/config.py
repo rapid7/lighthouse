@@ -68,6 +68,9 @@ def set_rm_limit( rm_limit):
 def rm_old_files():
 	global _data_dir, _rm_limit
 
+	if _data_dir is None:
+		return
+
 	limit = helpers.load_time( _rm_limit)
 	if limit is None:
 		return None
