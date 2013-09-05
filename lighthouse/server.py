@@ -73,7 +73,7 @@ def e( path, part):
 
 
 class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
-	""" Interface to the Loghthouse configuration. """
+	""" Interface to the Lighthouse configuration. """
 
 	def __init__(self, *args):
 		BaseHTTPServer.BaseHTTPRequestHandler.__init__( self, *args)
@@ -90,7 +90,7 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 		path, blocks = self._get_path()
 		self._parse_params()
 		try:
-			if path == U_ROOT: self._response_plain( RESPONSE_ABOUT)
+			if path == U_ROOT: self._response_root()
 			elif d( path, U_DATA): self.get_data( blocks[1:])
 			elif d( path, U_UPDATE): self.get_update( blocks[1:])
 			elif e( path, U_LOCK): self.get_lock()
@@ -147,7 +147,7 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 	def put_lock(self, blocks):
 		""" Put lock """
 		code = self._read_input()
-		logging.info("log code: [%s]" % code);
+		logging.info("log code: [%s]" % code)
 		if not code:
 			# Missing lock code, try to delete the lock
 
@@ -322,12 +322,29 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 
 
 	#
+	# Root request
+	#
+
+	def _response_root(self):
+		accepted = self.headers.getheader( 'Accept')
+		cluster_state = json.dumps( sync.cluster_state.get_state(), sort_keys=True, indent=2)
+		if accepted.find( 'text/html') != -1:
+			# Output in plain text
+			return self._response_plain( "%s\n%s\n"%(RESPONSE_ABOUT, cluster_state))
+		else:
+			# Output in HTML
+			# TODO: HTML, escaping
+			# TODO: data
+			return self._response_plain( "HTML %s\n<pre>%s</pre>\n"%(RESPONSE_ABOUT, cluster_state))
+
+
+	#
 	# Helpers
 	#
 
 	def _response(self, status, content_type, text, headers=[]):
 		self.send_response( status)
-		self.send_header( 'Content-type', content_type)
+		self.send_header( 'Content-Type', content_type)
 		self.send_header( 'Content-Length', '%s'%len( text))
 		for header in headers:
 			self.send_header( header[0], header[1])
@@ -355,13 +372,13 @@ class LighthouseRequestHandler( BaseHTTPServer.BaseHTTPRequestHandler):
 		return self._response( 204, 'application/json', response)
 
 	def _response_bad_request( self, response = RESPONSE_BAD_REQUEST):
-		return self._response( 400, 'text_plain', response)
+		return self._response( 400, 'text/plain', response)
 
 	def _response_not_found( self, response = RESPONSE_NOT_FOUND):
-		return self._response( 404, 'text_plain', response)
+		return self._response( 404, 'text/plain', response)
 
 	def _response_service_unavailable( self, response = RESPONSE_SERVICE_UNAVAILABLE):
-		return self._response( 503, 'text_plain', response)
+		return self._response( 503, 'text/plain', response)
 
 	def _get_path(self):
 		url = urlparse.urlparse( self.path)
